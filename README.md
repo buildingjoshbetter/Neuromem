@@ -77,21 +77,36 @@ Same features, same 6-layer pipeline. **Pro upgrades the embedding model and the
 
 ### Claude Code / Claude Desktop
 
-One command. Installs Neuromem and auto-configures Claude:
+One command. Works on any Mac or Linux box, **even if your system Python is old or missing entirely.**
+
+**Step 1.** Open Terminal:
+- **Mac:** press `Cmd + Space`, type `Terminal`, press `Enter`
+- **Linux:** press `Ctrl + Alt + T` (or open your distro's terminal app)
+
+**Step 2.** Paste this one line and press `Enter`:
 
 ```bash
-pip install neuromem-core[gpu,mcp] && neuromem-mcp --setup
+curl -LsSf https://raw.githubusercontent.com/buildingjoshbetter/neuromem/main/install.sh | sh
 ```
 
-That's it. Start a new Claude session — Neuromem walks you through choosing **Base** or **Pro** on first run, and you're ready to go.
+**Step 3.** Wait ~1-2 minutes while it downloads and installs. You'll see progress messages scroll by — that's normal.
 
-> **Lightweight install** (Base only, ~30MB instead of ~1.5GB):
+**Step 4.** If Claude Desktop was already open, **quit it with `Cmd+Q` and reopen it** (a new chat window is not enough — the config is only read at launch). Then start a new Claude session and Neuromem walks you through choosing **Base** or **Pro** on first run.
+
+> **What this actually does:** installs [uv](https://docs.astral.sh/uv/) (Astral's Python tool manager) if needed, fetches a managed Python 3.12 into `~/.local/share/uv/`, installs Neuromem into an isolated tool environment, and auto-configures Claude Code and Claude Desktop. **Your system Python is never touched.** No sudo, no venvs, no pip struggle. Uninstall cleanly with `uv tool uninstall neuromem-core`.
+
+> **Want to audit the script first?** It's ~140 lines of shell, no sudo, stays entirely under `$HOME`. Read the source at [`install.sh`](install.sh), or download and inspect locally: `curl -LsSf https://raw.githubusercontent.com/buildingjoshbetter/neuromem/main/install.sh -o install.sh && less install.sh && sh install.sh`.
+
+> **Want Pro (adds GPU reranker + sentence-transformers, ~1.5-2.5GB depending on OS)?**
 > ```bash
-> pip install neuromem-core[mcp] && neuromem-mcp --setup
+> curl -LsSf https://raw.githubusercontent.com/buildingjoshbetter/neuromem/main/install.sh | NEUROMEM_EXTRAS="gpu,mcp" sh
 > ```
-> If you pick Pro later, Neuromem will prompt you to install the extra models.
+> The default install is **Base** (~30MB). If you pick Pro during first-run setup, Neuromem will prompt you to install the extra models.
+> *(Linux CPU-only boxes will pull PyTorch's default CUDA wheel, which is larger — ~2.5GB total. Mac installs are closer to ~1.5GB.)*
 
-### Python library (no Claude)
+### Python library (for developers)
+
+If you're embedding Neuromem in your own Python project (requires Python 3.10+):
 
 ```bash
 pip install neuromem-core
@@ -136,11 +151,11 @@ cp CLAUDE.md.example ~/CLAUDE.md
 
 ### Manual setup
 
-If `--setup` doesn't detect your Claude installation, you can configure manually:
+If auto-setup doesn't detect your Claude installation, you can configure manually.
 
-**Claude Code:**
+**Claude Code** (if you used the installer above):
 ```bash
-claude mcp add neuromem -- python -m neuromem.mcp_server
+claude mcp add neuromem -- neuromem-mcp
 ```
 
 **Claude Desktop:** add to `claude_desktop_config.json` (Settings > Developer > Edit Config):
@@ -149,14 +164,28 @@ claude mcp add neuromem -- python -m neuromem.mcp_server
 {
   "mcpServers": {
     "neuromem": {
-      "command": "python",
-      "args": ["-m", "neuromem.mcp_server"]
+      "command": "/Users/YOU/.local/bin/neuromem-mcp"
     }
   }
 }
 ```
 
-> If you installed in a virtualenv, use the full path to that Python (e.g. `"/path/to/venv/bin/python"`).
+> Use the **absolute path** to `neuromem-mcp` — run `which neuromem-mcp` to find it. Claude Desktop (and most non-Claude-Code MCP clients) don't inherit your shell's PATH, so relative commands will silently fail.
+
+**No-install alternative (uvx):** skip installing Neuromem entirely and let Claude run it ephemerally. Requires [uv](https://docs.astral.sh/uv/) to be installed.
+
+```json
+{
+  "mcpServers": {
+    "neuromem": {
+      "command": "/Users/YOU/.local/bin/uvx",
+      "args": ["--python", "3.12", "--from", "neuromem-core[mcp]", "neuromem-mcp"]
+    }
+  }
+}
+```
+
+uvx creates a cached environment on first run; subsequent spawns are fast. Good if you want Neuromem to always be latest-on-PyPI without managing an install.
 
 ---
 

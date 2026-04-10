@@ -691,30 +691,75 @@ def _setup_claude():
     Detects which Claude clients are available and configures both.
     Uses sys.executable so the MCP server runs with the same Python
     that has neuromem installed (works in venvs, homebrew, system python, etc.).
+
+    Re-run behaviour:
+      - If no ``neuromem`` entry exists, creates one.
+      - If an entry exists and its command points to a file that still exists
+        on disk, the entry is preserved (so an active dev venv or an older
+        working install is not clobbered).
+      - If an entry exists but its command path no longer exists on disk
+        (stale entry from a deleted venv, moved home dir, etc.), the entry
+        is replaced with the current ``sys.executable``.
     """
     import shutil
     import subprocess
     import sys
 
     python_path = sys.executable
+    mcp_args = ["-m", "neuromem.mcp_server"]
     configured = []
+
+    def _path_exists(p: str) -> bool:
+        try:
+            return bool(p) and Path(p).exists()
+        except Exception:
+            return False
 
     # --- Claude Code CLI ---
     claude_bin = shutil.which("claude")
     if claude_bin:
-        result = subprocess.run(
-            [claude_bin, "mcp", "add", "neuromem", "--",
-             python_path, "-m", "neuromem.mcp_server"],
-            capture_output=True, text=True,
-        )
+        add_cmd = [claude_bin, "mcp", "add", "neuromem", "--",
+                   python_path, *mcp_args]
+        result = subprocess.run(add_cmd, capture_output=True, text=True)
         if result.returncode == 0:
             configured.append("Claude Code")
-        else:
-            # May already exist — check stderr
-            if "already exists" in (result.stderr or "").lower():
-                configured.append("Claude Code (already configured)")
+        elif "already exists" in (result.stderr or "").lower():
+            # Inspect the existing entry. `claude mcp list` output format:
+            #   neuromem: /path/to/python -m neuromem.mcp_server - ✓ Connected
+            list_result = subprocess.run(
+                [claude_bin, "mcp", "list"], capture_output=True, text=True,
+            )
+            existing_cmd = ""
+            if list_result.returncode == 0:
+                for line in (list_result.stdout or "").splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("neuromem:") or stripped.startswith("neuromem "):
+                        # Everything after the first colon, before the status marker.
+                        rest = stripped.split(":", 1)[1].strip() if ":" in stripped else ""
+                        # Format: "<cmd> <args...> - <status>" — strip the trailing status.
+                        if " - " in rest:
+                            rest = rest.rsplit(" - ", 1)[0]
+                        tokens = rest.split()
+                        if tokens:
+                            existing_cmd = tokens[0]
+                        break
+
+            if _path_exists(existing_cmd):
+                # Working entry — preserve it (don't clobber a dev venv).
+                configured.append("Claude Code (existing config preserved)")
             else:
-                print(f"  Claude Code: failed — {result.stderr.strip()}")
+                # Stale entry — remove and re-add.
+                subprocess.run(
+                    [claude_bin, "mcp", "remove", "neuromem"],
+                    capture_output=True, text=True,
+                )
+                retry = subprocess.run(add_cmd, capture_output=True, text=True)
+                if retry.returncode == 0:
+                    configured.append("Claude Code (stale entry replaced)")
+                else:
+                    print(f"  Claude Code: update failed — {retry.stderr.strip()}")
+        else:
+            print(f"  Claude Code: failed — {result.stderr.strip()}")
 
     # --- Claude Desktop ---
     desktop_config_path = Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
@@ -726,15 +771,22 @@ def _setup_claude():
                 config = {}
 
             servers = config.setdefault("mcpServers", {})
-            if "neuromem" not in servers:
-                servers["neuromem"] = {
-                    "command": python_path,
-                    "args": ["-m", "neuromem.mcp_server"],
-                }
+            existing = servers.get("neuromem")
+            existing_cmd = (existing or {}).get("command", "") if isinstance(existing, dict) else ""
+
+            if existing is None:
+                # No entry — create one.
+                servers["neuromem"] = {"command": python_path, "args": list(mcp_args)}
                 desktop_config_path.write_text(json.dumps(config, indent=2))
                 configured.append("Claude Desktop")
+            elif _path_exists(existing_cmd):
+                # Working entry — preserve it.
+                configured.append("Claude Desktop (existing config preserved)")
             else:
-                configured.append("Claude Desktop (already configured)")
+                # Stale entry — replace it.
+                servers["neuromem"] = {"command": python_path, "args": list(mcp_args)}
+                desktop_config_path.write_text(json.dumps(config, indent=2))
+                configured.append("Claude Desktop (stale entry replaced)")
         except Exception as e:
             print(f"  Claude Desktop: failed — {e}")
 
