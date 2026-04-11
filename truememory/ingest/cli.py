@@ -264,7 +264,7 @@ def _preflight_writable_target(target: str | None, *, kind: str) -> bool:
 _SAURON_BANNER = """
 \033[1;33m╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║              ◉  N E U R O M E M                              ║
+║              ◉  T R U E M E M O R Y                          ║
 ║              Persistent Memory for AI Agents                 ║
 ║                                                              ║
 ║              A Sauron Company                                ║
