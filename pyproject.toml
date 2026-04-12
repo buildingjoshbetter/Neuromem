@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "truememory"
-version = "0.2.2"
+version = "0.3.0"
 description = "SOTA-level agent memory at zero infrastructure cost."
 readme = "README.md"
 license = "Apache-2.0"
@@ -29,6 +29,14 @@ dependencies = [
     "model2vec>=0.6.0,<1.0",
     "sqlite-vec>=0.1.0,<1.0",
     "numpy>=1.24.0",
+    # mcp[cli] and httpx are required by truememory.mcp_server, which is the
+    # primary entry point of this package (`truememory-mcp`). Previously these
+    # lived in the `[mcp]` optional extra, which caused `pip install truememory
+    # && truememory-mcp --setup` to crash with ModuleNotFoundError on first run.
+    # Moved to core in 0.3.0. The [mcp] extra below is kept as a no-op alias
+    # for backwards compatibility.
+    "mcp[cli]>=1.0.0",
+    "httpx>=0.27.0",
 ]
 
 [project.optional-dependencies]
