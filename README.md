@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/charts/hero-banner.png" alt="TrueMemory" />
+  <img src="assets/charts/hero-banner.png?v=2" alt="TrueMemory" />
 </p>
 
 <p align="center">
