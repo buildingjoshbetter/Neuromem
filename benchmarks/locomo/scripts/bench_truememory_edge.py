@@ -19,7 +19,7 @@ Usage:
 
     modal volume get locomo-results / ./results --force
 """
-# ruff: noqa: E701, E702, E722, F541, F841
+# ruff: noqa: E701, E702, E722
 # This bench script uses a deliberately terse one-line-per-statement style
 # to keep the Modal-shipped source compact. Style rules above are silenced
 # for the file; correctness rules still apply.
@@ -211,11 +211,15 @@ def retrieve_truememory_edge(conv_data, conv_idx):
     import tempfile
     get_reranker(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2")
     msgs = parse_conv(conv_data)
-    tmp_db = tempfile.mktemp(suffix=".db", prefix=f"edge_{conv_idx}_")
+    _tmp_db_file = tempfile.NamedTemporaryFile(suffix=".db", prefix=f"edge_{conv_idx}_", delete=False)
+    tmp_db = _tmp_db_file.name
+    _tmp_db_file.close()
     engine = TrueMemoryEngine(db_path=tmp_db)
     # Ingest
     import json as _json
-    tmp_json = tempfile.mktemp(suffix=".json")
+    _tmp_json_file = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    tmp_json = _tmp_json_file.name
+    _tmp_json_file.close()
     msg_dicts = [{"content":m["content"],"sender":m["speaker"],"recipient":m["recipient"],
                   "timestamp":m["timestamp"],"category":m["session"],"modality":"conversation"}
                  for m in msgs]
