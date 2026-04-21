@@ -1,26 +1,36 @@
 #!/usr/bin/env python3
 """
-LoCoMo Benchmark — TrueMemory Base Tier
-======================================
-TrueMemory Base tier using Model2Vec (potion-base-8M, 256-dim) embeddings
-and cross-encoder reranker (ms-marco-MiniLM-L6-v2, 22M params).
-No HyDE, no GPU required. Lightweight and fast.
+LoCoMo Benchmark — TrueMemory Pro Tier (+HyDE, T4 GPU)
+======================================================
+TrueMemory Pro tier using Qwen3-Embedding-0.6B @ 256d Matryoshka embeddings,
+gte-reranker-modernbert-base (149M params) reranker, and HyDE (Hypothetical
+Document Embeddings) via OpenRouter LLM. Paper §2.0 target: 91.8%.
+Requires a T4 GPU on Modal.
 
 This is a fully self-contained Modal script. No local imports required.
 
-Dependencies: truememory, sentence-transformers
+Dependencies: truememory[gpu], sentence-transformers
 Eval: openai/gpt-4.1-mini (answers) + openai/gpt-4o-mini (judge) via OpenRouter
 
 Usage:
     modal secret create openrouter-key OPENROUTER_API_KEY=sk-or-...
 
-    modal run --detach bench_truememory_base.py          # Full run (10 convs, 1540 Qs)
-    modal run --detach bench_truememory_base.py --smoke  # Smoke test (1 conv, 5 Qs)
+    modal run --detach bench_truememory_pro.py          # Full run (10 convs, 1540 Qs)
+    modal run --detach bench_truememory_pro.py --smoke  # Smoke test (1 conv, 5 Qs)
 
     modal volume get locomo-results / ./results --force
 """
+# ruff: noqa: E701, E702, E722, F541, F841
+# This bench script uses a deliberately terse one-line-per-statement style
+# to keep the Modal-shipped source compact. Style rules above are silenced
+# for the file; correctness rules still apply.
 
-import json, modal, os, re, sys, time
+import json
+import modal
+import os
+import re
+import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -32,7 +42,7 @@ VM = "/results"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 img = (modal.Image.debian_slim(python_version="3.11")
-    .pip_install("openai>=1.0", "truememory", "sentence-transformers"))
+    .pip_install("openai>=1.0", "truememory[gpu]", "sentence-transformers"))
 
 # ── Eval Config (IDENTICAL across all systems) ──────────────────────────
 
@@ -192,15 +202,25 @@ def _nm_format_ctx(results):
         parts.append(f"{meta} {r['content']}")
     return "\n\n".join(parts)
 
-# ── TrueMemory Base Retrieval ─────────────────────────────────────────────
+def _nm_make_hyde_fn():
+    """Create HyDE LLM callable via OpenRouter — matches v2 scripts."""
+    client = mkc()
+    def _call(prompt):
+        resp = client.chat.completions.create(
+            model="openai/gpt-4.1-mini", max_tokens=300, temperature=0.3,
+            messages=[{"role": "user", "content": prompt}])
+        return resp.choices[0].message.content
+    return _call
+
+# ── TrueMemory Base Retrieval (HyDE OFF) ──────────────────────────────────
 
 def retrieve_truememory_base(conv_data, conv_idx):
     from truememory.vector_search import set_embedding_model
-    set_embedding_model("model2vec")
+    set_embedding_model("base")
     from truememory.engine import TrueMemoryEngine
     from truememory.reranker import get_reranker
     import tempfile
-    get_reranker(model_name="cross-encoder/ms-marco-MiniLM-L6-v2")
+    get_reranker(model_name="Alibaba-NLP/gte-reranker-modernbert-base")
     msgs = parse_conv(conv_data)
     tmp_db = tempfile.mktemp(suffix=".db", prefix=f"base_{conv_idx}_")
     engine = TrueMemoryEngine(db_path=tmp_db)
@@ -212,10 +232,11 @@ def retrieve_truememory_base(conv_data, conv_idx):
                  for m in msgs]
     with open(tmp_json,"w") as f: _json.dump(msg_dicts, f)
     engine.ingest(tmp_json)
-    # Retrieve
+    # Retrieve with reranker only; no HyDE (paper §2.0 Default)
     results = []
     for qa in get_qa(conv_data):
-        sr = engine.search_agentic(qa["question"], limit=100, use_hyde=False, use_reranker=True)
+        sr = engine.search_agentic(qa["question"], limit=100,
+                                   use_hyde=False, use_reranker=True)
         ctx = _nm_format_ctx(sr)
         results.append((qa["question"], qa["category"], qa["answer"], ctx or "No results found."))
     engine.close()
@@ -276,7 +297,7 @@ def _bench_conv(conv_data, conv_idx, smoke=False):
     return details
 
 @app.function(image=img, secrets=[modal.Secret.from_name("openrouter-key")],
-              timeout=14400, memory=8192)
+              timeout=14400, memory=8192, gpu="T4")
 def worker(conv_data, conv_idx, smoke=False):
     return _bench_conv(conv_data, conv_idx, smoke)
 
@@ -285,10 +306,10 @@ def worker(conv_data, conv_idx, smoke=False):
 @app.function(image=img, secrets=[modal.Secret.from_name("openrouter-key")],
               timeout=28800, memory=2048, volumes={VM: vol})
 def orchestrate(locomo_data: list, smoke: bool = False):
-    """Run TrueMemory Base, checkpointing after each conversation."""
+    """Run TrueMemory Base (Qwen3 256d + gte-reranker, HyDE OFF)."""
     system = "truememory_base"
     ckpt_path = f"{VM}/{system}_checkpoint.json"
-    result_path = f"{VM}/{system}_v2_run1.json"
+    result_path = f"{VM}/{system}_v3_modal.json"
     n_convs = 1 if smoke else len(locomo_data)
     mode = "SMOKE TEST" if smoke else "FULL RUN"
 
@@ -356,7 +377,7 @@ def orchestrate(locomo_data: list, smoke: bool = False):
 
     # Save final result
     result = {
-        "system": system, "version": "v3-checkpointed", "run": 1,
+        "system": system, "version": "v3-modal-rerun", "run": 1,
         "answer_model": ANSWER_MODEL, "answer_max_tokens": ANSWER_MAX_TOKENS,
         "answer_temperature": ANSWER_TEMPERATURE, "judge_model": JUDGE_MODEL,
         "judge_max_tokens": JUDGE_MAX_TOKENS, "judge_temperature": JUDGE_TEMPERATURE,
@@ -387,14 +408,14 @@ def main(smoke: bool = False, dataset: str = None):
         data = json.load(f)
 
     print(f"\n{'='*60}")
-    print(f"LoCoMo Benchmark — TrueMemory Base — {'SMOKE TEST' if smoke else 'FULL RUN'}")
+    print(f"LoCoMo Benchmark — TrueMemory Base (HyDE OFF, T4 GPU) — {'SMOKE TEST' if smoke else 'FULL RUN'}")
     print(f"{'='*60}")
     print(f"  Mode:     {'1 conv x 5 Qs' if smoke else '10 convs x 1540 Qs'}")
     print(f"  Answer:   {ANSWER_MODEL} via OpenRouter")
     print(f"  Judge:    {JUDGE_MODEL} via OpenRouter")
-    print(f"  Volume:   locomo-results")
+    print("  Volume:   locomo-results")
     print(f"{'='*60}\n")
 
-    handle = orchestrate.spawn(data, smoke)
-    print(f"  Launched on Modal. Results save to Volume 'locomo-results'.")
-    print(f"  Download: modal volume get locomo-results / ./results --force")
+    orchestrate.spawn(data, smoke)
+    print("  Launched on Modal. Results save to Volume 'locomo-results'.")
+    print("  Download: modal volume get locomo-results / ./results --force")
