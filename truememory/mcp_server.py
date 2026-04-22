@@ -842,9 +842,35 @@ def _setup_claude():
 # Entry point
 # ---------------------------------------------------------------------------
 
+_HELP_TEXT = """Usage: truememory-mcp [--setup | --help | --version]
+
+TrueMemory MCP server — persistent memory for AI agents.
+
+Options:
+  --setup       Auto-configure TrueMemory as an MCP server in Claude Code
+                and/or Claude Desktop. Run this once after `pip install`.
+  --help, -h    Show this help message and exit.
+  --version, -V Show version and exit.
+
+With no arguments, runs the MCP server on stdio. This is what Claude Code
+and Claude Desktop invoke when they connect to the server — do not run it
+directly in a terminal unless you're debugging the MCP stdio protocol.
+
+See https://github.com/buildingjoshbetter/TrueMemory for documentation.
+"""
+
+
 def main():
-    """Run the MCP server, or --setup to auto-configure Claude."""
+    """Run the MCP server, or --setup / --help / --version."""
     import sys
+    # Handle informational flags first — these must return immediately, before
+    # mcp.run() blocks on stdin or _preload_models() starts background threads.
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(_HELP_TEXT)
+        return
+    if "--version" in sys.argv or "-V" in sys.argv:
+        print(f"truememory-mcp {__version__}")
+        return
     if "--setup" in sys.argv:
         _setup_claude()
         return

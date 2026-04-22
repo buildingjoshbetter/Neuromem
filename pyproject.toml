@@ -10,13 +10,12 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
-    { name = "@Building_Josh" },
+    { name = "@Building_Josh", email = "buildingjoshbetter@gmail.com" },
 ]
 keywords = ["memory", "ai", "agents", "llm", "rag", "sqlite", "locomo", "mcp", "embeddings"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -40,12 +39,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gpu = ["sentence-transformers>=3.0.0", "torch>=2.0.0"]
+# "gpu" and "reranker" name the same stack — one alias to keep them in sync.
 reranker = ["sentence-transformers>=3.0.0", "torch>=2.0.0"]
+gpu = ["truememory[reranker]"]
 agentic = ["anthropic>=0.80.0"]
-mcp = ["mcp[cli]>=1.0.0", "httpx>=0.27.0"]
-dev = ["pytest>=7.0", "ruff>=0.4"]
-all = ["truememory[gpu,reranker,agentic,mcp]"]
+dev = ["pytest>=7.0", "ruff>=0.4", "build>=1.2", "twine>=5.0"]
+all = ["truememory[gpu,reranker,agentic]"]
 
 [project.scripts]
 truememory-mcp = "truememory.mcp_server:main"
@@ -54,6 +53,7 @@ truememory-ingest = "truememory.ingest.cli:main"
 [project.urls]
 Homepage = "https://github.com/buildingjoshbetter/TrueMemory"
 Repository = "https://github.com/buildingjoshbetter/TrueMemory"
+Documentation = "https://github.com/buildingjoshbetter/TrueMemory#readme"
 Issues = "https://github.com/buildingjoshbetter/TrueMemory/issues"
 Changelog = "https://github.com/buildingjoshbetter/TrueMemory/blob/main/CHANGELOG.md"
 
@@ -75,3 +75,26 @@ packages = ["truememory"]
 
 # CLAUDE_TEMPLATE.md lives inside the package at truememory/ingest/CLAUDE_TEMPLATE.md
 # so it's auto-included in the wheel — no force-include needed.
+
+[tool.hatch.build.targets.sdist]
+# Explicit exclude list so the sdist stays tight (~400KB compressed instead of 36MB).
+# Without these, hatchling ships every untracked non-gitignored file including
+# _working/ (149MB of paper drafts, audit logs, bench archives).
+exclude = [
+    "/_working",
+    "/dist",
+    "/build",
+    "/.venv",
+    "/.venv*",
+    "/.pytest_cache",
+    "/.ruff_cache",
+    "/.github",
+    "/install.sh",
+    "/assets/charts/*.html",
+    "/assets/charts/*.png",
+    "/benchmarks/locomo/data/locomo10.json",
+    "/benchmarks/locomo/results",
+    "*.pyc",
+    "__pycache__",
+    ".DS_Store",
+]
