@@ -30,14 +30,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# HuggingFace offline mode — skip HTTP freshness checks when models are cached.
-# Models are already downloaded on first install; subsequent loads should be
-# pure disk reads (~170ms) instead of HTTP round-trips (~600ms+).
-# ---------------------------------------------------------------------------
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
-os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-
 from mcp.server.fastmcp import FastMCP
 
 from truememory import __version__
@@ -1041,10 +1033,20 @@ def main():
         print(_HELP_TEXT, file=sys.stderr)
         return 2
 
-    # No args → this is the Claude-Code-invoked MCP server path. Kick off
-    # model preloading before entering the event loop. Models load in
-    # background threads (~2.5s) while the MCP handshake completes (~1-3s),
-    # so by the time the first search arrives, models are already warm.
+    # No args → this is the Claude-Code-invoked MCP server path.
+    #
+    # HuggingFace offline mode — skip HTTP freshness checks when models are
+    # cached. Models are downloaded on first install; subsequent loads
+    # should be pure disk reads (~170ms) instead of HTTP round-trips
+    # (~600ms+). Set HERE (not at module import) so merely importing
+    # truememory.mcp_server from a test or notebook doesn't poison the
+    # environment for code that expects online HF access.
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
+    # Kick off model preloading before entering the event loop. Models
+    # load in background threads (~2.5s) while the MCP handshake
+    # completes (~1-3s), so the first search arrives with warm models.
     _preload_models()
     mcp.run(transport="stdio")
     return 0

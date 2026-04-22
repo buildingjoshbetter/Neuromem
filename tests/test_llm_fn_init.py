@@ -95,6 +95,44 @@ def test_successful_provider_clears_that_providers_error(server, monkeypatch):
     assert server._current_llm_provider_name == "openrouter"
 
 
+def test_importing_mcp_server_does_not_set_hf_offline():
+    """Regression lock: importing `truememory.mcp_server` must NOT set
+    `HF_HUB_OFFLINE` / `TRANSFORMERS_OFFLINE` as a side effect. That was
+    a perf shortcut for the MCP CLI entry point, but when module-level
+    setdefault ran at import time it poisoned later tests / notebooks
+    that expected online HF access (CI has no cached model2vec, so the
+    first `build_vectors` call raised `OfflineModeIsEnabled`).
+    """
+    import os
+    import subprocess
+    import sys
+
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE")}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import os\n"
+                "assert 'HF_HUB_OFFLINE' not in os.environ\n"
+                "import truememory.mcp_server  # noqa: F401\n"
+                "assert 'HF_HUB_OFFLINE' not in os.environ, 'mcp_server set HF_HUB_OFFLINE at import'\n"
+                "assert 'TRANSFORMERS_OFFLINE' not in os.environ, 'mcp_server set TRANSFORMERS_OFFLINE at import'\n"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
+    assert result.returncode == 0, (
+        f"subprocess failed: {result.returncode}\n"
+        f"stdout: {result.stdout}\n"
+        f"stderr: {result.stderr}"
+    )
+
+
 def test_all_providers_fail_sets_none_and_records_all(server, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "k1")
     monkeypatch.setenv("OPENROUTER_API_KEY", "k2")
