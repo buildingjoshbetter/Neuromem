@@ -1,5 +1,75 @@
 # Changelog
 
+## [0.5.0] - 2026-04-23
+
+Post-v0.4.0 hardening release. 40 findings closed from a structured audit ("Hunter v1" — see tracker #44), shipped across 11 PRs + 3 direct-to-main commits. v0.4.0 was a code-only tier-realignment release that never reached PyPI; v0.5.0 is the first published release to include it.
+
+Backward compatibility: no public API was removed. The one name change (`load_messages` → `bulk_replace_messages`) ships with a `DeprecationWarning`-emitting alias for one release.
+
+### Added — new public API
+
+- **`TrueMemoryMigrationError`** (in `truememory.vector_search`). Raised on DB open when the stored embedder doesn't match the active tier — catches the v0.3.0 Pro @ 1024d → v0.4.0 @ 256d upgrade-path crash with an actionable migration hint instead of a raw `sqlite3.OperationalError: Dimension mismatch`. Also catches same-dim / different-model drift (e.g., Model2Vec 256d → Qwen3 256d) via a new `metadata` key-value table that `build_vectors` / `build_separation_vectors` stamp with `(embed_model, embed_dim)` on every rebuild.
+- **`bulk_replace_messages(conn, messages)`** (in `truememory.storage`). The non-deprecated name for the destructive DELETE-then-INSERT helper. `load_messages` is kept as a deprecated alias that emits `DeprecationWarning`.
+- **`truememory_stats()["health"]`** (MCP tool). New payload with `reranker`, `hyde_llm`, and `vectors` subsystem status, each reporting `{status: "ok"|"degraded", last_error, ...}`. MCP clients can now diagnose "why is search bad?" without digging through server logs. `health.hyde_llm` additionally reports `active_provider` and `last_error_by_provider` (anthropic / openrouter / openai).
+- **`get_vectors_load_error()`** helper (in `truememory.engine`) for programmatic access to the sqlite-vec load-failure state.
+- **`__all__`** in `truememory/__init__.py` now enumerates all 80 re-exported names (was 3). `from truememory import *` and IDE autocomplete now see the full public surface.
+- **`Memory.add("")`** / whitespace-only content now emits a `UserWarning` and returns a skip-marker (`{id: None, created_at: None, ...}`) instead of silently inserting a useless row.
+
+### Changed — user-visible behavior
+
+- **`_load_config`** corruption handling: corrupt `~/.truememory/config.json` is now renamed to `config.json.corrupt.<unix-ts>` (preserving any API keys for recovery) with a stderr warning, instead of silently returning `{}` and losing the user's tier + keys.
+- **LLM client construction** in MCP server: bad API key / rate-limit / import failure now logs at WARNING and stores `_llm_last_error[provider]` (consumed by `stats.health.hyde_llm`) instead of silently falling through to no-HyDE mode. Pro tier no longer silently degrades to Base without signal.
+- **Reranker load failure** in MCP server: now logs at WARNING with an install hint (`pip install truememory[gpu]`) and stores `_reranker_last_error`. Throttled to log once per distinct error to avoid log spam on the per-search code path.
+- **`truememory_configure` re-embed**: now rebuilds BOTH `vec_messages` AND `vec_messages_sep` (previously only the completion table was rebuilt, leaving separation search silently empty after any tier switch). Exceptions are surfaced as `rebuild_error` + `warning` fields in the response payload instead of being swallowed. `_memory = None` now lives in a `finally` so the next call always gets a fresh instance, even on failure.
+- **`HF_HUB_OFFLINE`** environment restoration in `truememory_configure` is now wrapped in `try/finally` so any raise mid-configure (e.g., `set_embedding_model` on a removed model) doesn't leak offline-mode-disabled state for the process lifetime.
+- **`sqlite-vec` load failure** in `engine.open()` upgraded from DEBUG to WARNING with a link to platform notes. FTS-only fallback is unchanged — just no longer silent.
+- **`_setup_claude`**: all four `claude mcp` CLI calls now have `timeout=30` and report `TimeoutExpired` to stderr instead of hanging forever if the binary stalls (auth prompt, blocked network, deadlock).
+- **`pip install truememory[gpu]`** subprocess in the setup wizard now has `timeout=600` (10 min) with a stderr message and Edge-tier fallback on timeout.
+- **Stop hook**: now bounds concurrent ingest spawns via `TRUEMEMORY_INGEST_SPAWN_CAP` (default 2). Over-cap events queue to `~/.truememory/backlog/<session_id>.json` for a later session to drain. When Popen itself fails, the hook writes a backlog marker instead of falling back to synchronous inline ingestion (which had been blocking Claude Code's shutdown for 10–60s).
+- **`PRAGMA busy_timeout`** is now a single source of truth (`storage.DEFAULT_BUSY_TIMEOUT_MS = 10_000`) across `create_db` and `pipeline._set_busy_timeout`. Pre-fix the two paths used 5 s and 10 s asymmetrically, surfacing as sporadic `database is locked` under contention.
+- **Claude Desktop config path** in `_setup_claude` now resolves per-platform (macOS / Windows / Linux+BSD) instead of hard-coding the macOS `~/Library/Application Support/` path. Linux and Windows users with Desktop installed are no longer reported as "not detected".
+- **Windows config-file secrets warning**: when saving an API key on Windows, `_save_config` prints a stderr warning pointing to the env-var route. POSIX `chmod(0o600)` calls are no-ops on Windows, so the file inherits parent-directory ACL and may be readable by other local users.
+
+### Added — CI + packaging
+
+- New **`build-check`** job in `.github/workflows/ci.yml` running `python -m build && twine check --strict` on every PR (single Python 3.12 cell). Packaging regressions (missing `py.typed`, broken README rendering, sdist contents) now fail CI instead of release day.
+- New **`.github/dependabot.yml`** with weekly pip + github-actions scans.
+- sdist now excludes `benchmarks/` entirely (was shipping ~60 KB of Modal bench source, amplifying doc-drift findings to PyPI source-download users).
+
+### Fixed — concurrency / correctness
+
+- **`_get_llm_fn`** now uses double-checked locking around first-call construction (`_llm_cache_lock`). Prevents duplicate LLM-client construction on parallel first-searches.
+- **`_parallel_search._run_query`** now uses `with Memory(path=db_path) as thread_m:` instead of manual `try/finally m.close()`. Closes an interrupt-safety hole on KeyboardInterrupt between construction and the `try:` block.
+
+### Dependencies
+
+- `sentence-transformers>=3.0.0,<4.0` → `>=3.0.0,<6.0` (was forcing 3.4.1 when 5.4.1 was current; CrossEncoder API is stable across the range).
+- `pytest>=7.0,<9.0` → `>=7.0,<10.0` (dev-only; latest is 9.0.3).
+
+### Documentation
+
+- `vector_search.py` module docstring rewritten from "Model2Vec-only" to the v0.4.0 tier-aware resolution story.
+- `bench_truememory_base.py` header corrected (was a copy-paste from Pro claiming "Pro Tier +HyDE"; now accurately describes the Base tier @ 91.5% with HyDE off).
+- README chart-regeneration caveat moved above the first benchmark chart so it's seen before the stale visuals.
+- README `benchmarks/` / `install.sh` / `CLAUDE.md.example` / `LICENSE` links rewritten from relative paths to absolute `github.com/buildingjoshbetter/TrueMemory/blob/main/...` URLs (were 404'ing on PyPI's renderer).
+- `BENCHMARK_RESULTS.md` no longer cites gitignored `_working/` paths as authoritative sources.
+- `_nm_` → `_tm_` identifier cleanup in 4 Modal bench scripts (pre-rebrand neuromem namespace).
+- CHANGELOG rewrite for the branded migration-error in the v0.4.0 upgrade notes.
+
+### Security
+
+- Replaced dead `security@sauronlabs.ai` contact with the repo's maintainer address.
+
+### Deprecated
+
+- **`load_messages(conn, messages)`** in `truememory.storage`. Use `bulk_replace_messages` for the same (destructive) behavior, or `insert_message` per-row if you actually want to append. The deprecated alias will be removed in a future release.
+
+### Migration notes
+
+- **If you're upgrading a v0.3.0 Pro database**: the first open now raises `TrueMemoryMigrationError` (was: raw `OperationalError: Dimension mismatch`). Options are `truememory_configure(tier=...)` to re-embed in place, or delete `~/.truememory/memories.db` to start fresh. The error message includes both options.
+- **If you call `load_messages`**: start moving to `bulk_replace_messages`. The old name still works for now but emits `DeprecationWarning`.
+- **If you pattern-match on `truememory_stats()` response shape**: the new `health` key is additive; existing keys are unchanged.
+
 ## [0.4.0] - 2026-04-21
 
 Paper-aligned Edge / Base / Pro tier realignment. Pro no longer uses the cherry-picked Qwen3 1024d + mxbai-rerank-large-v1 configuration. The three tiers now match the paper §2.0 spec exactly:
