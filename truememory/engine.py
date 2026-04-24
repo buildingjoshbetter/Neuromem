@@ -607,6 +607,34 @@ class TrueMemoryEngine:
             ).fetchall()
         }
 
+        # ── MEMORIST-L4 migration: purge legacy entity_profile summary rows ─
+        # As of 2026-04-24, build_entity_summary_sheets is disabled by
+        # default (see consolidate() step 12). Existing v0.5.0 databases
+        # may contain `period='entity_profile'` rows that continue to be
+        # surfaced by search_consolidated (no period filter). Delete them
+        # once on open() so upgraders get the research's measured +5.3pt
+        # lift on day one rather than after their next consolidation run.
+        # Idempotent — re-running is a cheap no-op.
+        #
+        # Skipped if the user explicitly re-enables via
+        # TRUEMEMORY_ENTITY_SHEETS=1 (the next consolidate() will rewrite
+        # these rows, so deleting them here is pointless).
+        if "summaries" in tables and os.environ.get("TRUEMEMORY_ENTITY_SHEETS") != "1":
+            try:
+                deleted = self.conn.execute(
+                    "DELETE FROM summaries WHERE period = 'entity_profile'"
+                ).rowcount
+                if deleted > 0:
+                    self.conn.commit()
+                    logger.info(
+                        "MEMORIST-L4 migration: purged %d legacy "
+                        "entity_profile summary rows (disabled by default; "
+                        "set TRUEMEMORY_ENTITY_SHEETS=1 to re-enable)",
+                        deleted,
+                    )
+            except Exception:
+                logger.debug("entity_profile migration failed", exc_info=True)
+
         # Load sqlite-vec extension if available.
         # Hunter F08: upgrade DEBUG → WARNING and track failure in a
         # module-level state so ``truememory_stats.health`` can report
@@ -861,14 +889,29 @@ class TrueMemoryEngine:
             stats["detect_landmarks"] = "SKIPPED (temporal module not available)"
 
         # ── 12. Build entity summary sheets (B3) ─────────────────────────
-        if _HAS_CONSOLIDATION:
+        # Disabled 2026-04-24 per MEMORIST-L4 research:
+        #   _working/memorist/l4_consolidation/REPORT.md §3, §10.7
+        # The function wrote `summaries` rows with period='entity_profile'
+        # that saturated top-1 retrieval by keyword match and leaked
+        # superseded facts into contradiction scoring. Disabling produced
+        # +5.3 pts on the L4 composite probe metric (Pareto-dominant,
+        # see REPORT.md §3 Table "D1 vs C1" and §10.7 Ablation 2).
+        #
+        # Escape hatch: set TRUEMEMORY_ENTITY_SHEETS=1 to re-enable this
+        # function. Users who regress on real-world workloads can revert
+        # without a code patch. Intended to be removed in a future release
+        # once long-horizon production telemetry confirms the disable.
+        _entity_sheets_enabled = os.environ.get("TRUEMEMORY_ENTITY_SHEETS") == "1"
+        if _HAS_CONSOLIDATION and _entity_sheets_enabled:
             try:
                 t0 = time.time()
                 sheet_count = build_entity_summary_sheets(self.conn)
-                stats["entity_summary_sheets"] = f"{sheet_count} sheets in {time.time() - t0:.3f}s"
+                stats["entity_summary_sheets"] = f"{sheet_count} sheets in {time.time() - t0:.3f}s (re-enabled via TRUEMEMORY_ENTITY_SHEETS=1)"
             except Exception as exc:
                 stats["entity_summary_sheets"] = f"ERROR: {exc}"
                 logger.debug("entity_summary_sheets failed", exc_info=True)
+        elif _HAS_CONSOLIDATION:
+            stats["entity_summary_sheets"] = "DISABLED (MEMORIST-L4; set TRUEMEMORY_ENTITY_SHEETS=1 to re-enable)"
         else:
             stats["entity_summary_sheets"] = "SKIPPED (consolidation module not available)"
 
