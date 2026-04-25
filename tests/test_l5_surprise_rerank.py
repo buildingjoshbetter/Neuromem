@@ -82,22 +82,19 @@ def _fake_results(ids_and_scores, source=None):
 
 
 def test_alpha_zero_is_byte_identical(engine_with_surprise):
-    """Default α=0 → `_apply_surprise_boost` returns the input list
-    with identical order AND identical scores. This is the contract
-    the 'ship-default-off' recommendation depends on."""
+    """At explicit α=0, `_apply_surprise_boost` returns the input list
+    with identical order AND identical scores."""
     eng = engine_with_surprise
+    eng._alpha_surprise_override = 0.0
     original = _fake_results([(1, 0.9), (5, 0.8), (3, 0.7), (2, 0.6), (4, 0.5)])
-    # Snapshot state for comparison.
     before = [(r["id"], r["score"]) for r in original]
 
-    assert eng._get_alpha_surprise() == 0.0  # default
+    assert eng._get_alpha_surprise() == 0.0
     result = eng._apply_surprise_boost(original)
 
     after = [(r["id"], r["score"]) for r in result]
     assert before == after, (
-        "At α=0 the surprise boost must preserve order AND scores "
-        "exactly — otherwise ship-default-off breaks the 'no change' "
-        "contract."
+        "At α=0 the surprise boost must preserve order AND scores exactly."
     )
 
 
@@ -111,7 +108,7 @@ def test_env_var_sets_alpha(engine_with_surprise, monkeypatch):
     assert eng._get_alpha_surprise() == 1.5
 
     monkeypatch.setenv("TRUEMEMORY_ALPHA_SURPRISE", "not a number")
-    assert eng._get_alpha_surprise() == 0.0  # falls back safely
+    assert eng._get_alpha_surprise() == 0.3  # falls back to default
 
 
 def test_constructor_override_beats_env_var(tmp_path, monkeypatch):
@@ -257,15 +254,9 @@ def test_empty_results_returns_empty(engine_with_surprise):
 
 
 def test_alpha_zero_skips_db_query(engine_with_surprise):
-    """At α=0 the boost must short-circuit before touching the DB —
-    this is what makes ship-default-off zero-cost.
-
-    Verified by replacing the connection with a sentinel that raises
-    if any method is called. (sqlite3.Connection.execute is read-only
-    in CPython, so patch.object doesn't work here; we use a duck-typed
-    substitute instead.)
-    """
+    """At α=0 the boost must short-circuit before touching the DB."""
     eng = engine_with_surprise
+    eng._alpha_surprise_override = 0.0
 
     class _ExplodingConn:
         def __getattr__(self, name):
@@ -326,31 +317,28 @@ def test_search_default_path_applies_boost(tmp_path, monkeypatch):
 
 
 def test_alpha_zero_byte_identical_through_pipeline(tmp_path, monkeypatch):
-    """At α=0 the boost is a no-op regardless of whether the env var
-    is unset or explicitly '0'. _apply_surprise_boost must produce
-    identical id-order AND identical scores."""
+    """Both explicit α=0 (constructor) and α=0 (env var) produce
+    identical no-op results through _apply_surprise_boost."""
     from truememory.engine import TrueMemoryEngine
     from truememory.storage import create_db
 
     db_path = tmp_path / "azero.db"
     create_db(db_path).close()
-    eng = TrueMemoryEngine(db_path)
-    eng.open(rebuild_vectors=False)
 
     sample = _fake_results([(1, 0.9), (2, 0.8), (3, 0.7), (4, 0.6), (5, 0.5)])
+    expected = [(r["id"], r["score"]) for r in sample]
 
     monkeypatch.delenv("TRUEMEMORY_ALPHA_SURPRISE", raising=False)
-    r_unset = eng._apply_surprise_boost([dict(r) for r in sample])
+    eng = TrueMemoryEngine(db_path, alpha_surprise=0.0)
+    eng.open(rebuild_vectors=False)
+    r_ctor = eng._apply_surprise_boost([dict(r) for r in sample])
+    assert [(r["id"], r["score"]) for r in r_ctor] == expected
 
     monkeypatch.setenv("TRUEMEMORY_ALPHA_SURPRISE", "0")
-    r_zero = eng._apply_surprise_boost([dict(r) for r in sample])
-
-    assert [(r["id"], r["score"]) for r in r_unset] == [
-        (r["id"], r["score"]) for r in sample
-    ]
-    assert [(r["id"], r["score"]) for r in r_zero] == [
-        (r["id"], r["score"]) for r in sample
-    ]
+    eng2 = TrueMemoryEngine(db_path)
+    eng2.open(rebuild_vectors=False)
+    r_env = eng2._apply_surprise_boost([dict(r) for r in sample])
+    assert [(r["id"], r["score"]) for r in r_env] == expected
 
 
 def test_composite_source_refined_is_excluded(engine_with_surprise):
@@ -380,12 +368,12 @@ def test_precedence_chain_in_one_function(monkeypatch, tmp_path):
     from truememory.engine import TrueMemoryEngine
     from truememory.storage import create_db
 
-    # (1) No env, no override -> 0.0
+    # (1) No env, no override -> 0.3 (default)
     monkeypatch.delenv("TRUEMEMORY_ALPHA_SURPRISE", raising=False)
     create_db(tmp_path / "a.db").close()
     engine = TrueMemoryEngine(tmp_path / "a.db")
     engine.open(rebuild_vectors=False)
-    assert engine._get_alpha_surprise() == 0.0
+    assert engine._get_alpha_surprise() == 0.3
 
     # (2) Env=0.3, no override -> 0.3
     monkeypatch.setenv("TRUEMEMORY_ALPHA_SURPRISE", "0.3")
@@ -424,7 +412,7 @@ def test_non_finite_alpha_falls_back_to_zero(
     engine.open(rebuild_vectors=False)
 
     with caplog.at_level(logging.WARNING, logger="truememory.engine"):
-        assert engine._get_alpha_surprise() == 0.0
+        assert engine._get_alpha_surprise() == 0.3  # falls back to default
 
     assert any(
         "TRUEMEMORY_ALPHA_SURPRISE" in rec.message

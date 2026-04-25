@@ -931,7 +931,7 @@ class TrueMemoryEngine:
     # Search — full 6-layer pipeline
     # ──────────────────────────────────────────────────────────────────────
 
-    def search(self, query: str, limit: int = 10) -> list[dict]:
+    def search(self, query: str, limit: int = 10, _skip_surprise_boost: bool = False) -> list[dict]:
         """
         Main search pipeline.
 
@@ -1153,11 +1153,11 @@ class TrueMemoryEngine:
             except Exception:
                 logger.debug("Salience guard failed in search()", exc_info=True)
 
-        # ── 7.5 L5 surprise rerank boost (MEMORIST-L5, default-path wiring) ──
-        # `search()` has no cross-encoder, so this is the "after RRF/L3"
-        # insertion point per ISSUES.md Issue #1 Scope. α=0 default makes
-        # this a no-op unless operator explicitly opts in.
-        results = self._apply_surprise_boost(results)
+        # ── 7.5 L5 surprise rerank boost (MEMORIST-L5) ──
+        # Skipped when called from search_agentic() which applies its own
+        # boost after merging all result sources.
+        if not _skip_surprise_boost:
+            results = self._apply_surprise_boost(results)
 
         # ── 8. Ensure all results have required fields and trim ───────────
         cleaned: list[dict] = []
@@ -1266,7 +1266,7 @@ class TrueMemoryEngine:
             candidate_pool = max(limit * 8, 100)  # Large pool for reranking
         else:
             candidate_pool = limit * 3
-        primary_results = self.search(query, limit=candidate_pool)
+        primary_results = self.search(query, limit=candidate_pool, _skip_surprise_boost=True)
 
         # If HyDE available, run a parallel search and fuse with RRF
         if use_hyde and self._has_hyde and self._has_hybrid and llm_fn:
@@ -1373,7 +1373,7 @@ class TrueMemoryEngine:
             existing_ids = {r.get("id") for r in primary_results if r.get("id")}
             for rq in refined_queries:
                 try:
-                    rq_results = self.search(rq, limit=limit)
+                    rq_results = self.search(rq, limit=limit, _skip_surprise_boost=True)
                     for rr in rq_results:
                         rid = rr.get("id")
                         if rid and rid not in existing_ids:
@@ -1480,9 +1480,11 @@ class TrueMemoryEngine:
             for seg in source.split("+")
         )
 
+    _DEFAULT_ALPHA_SURPRISE = 0.3
+
     def _get_alpha_surprise(self) -> float:
         """Resolve alpha_surprise per MEMORIST-L5 precedence:
-        constructor arg > TRUEMEMORY_ALPHA_SURPRISE env var > 0.0.
+        constructor arg > TRUEMEMORY_ALPHA_SURPRISE env var > 0.3.
 
         Sanitizes against non-finite values (inf, -inf, nan) and
         TypeError/ValueError. Negative values are clamped to 0.
@@ -1494,9 +1496,9 @@ class TrueMemoryEngine:
             try:
                 a = float(alpha)
             except (TypeError, ValueError):
-                return 0.0
+                return self._DEFAULT_ALPHA_SURPRISE
             if math.isnan(a) or math.isinf(a):
-                return 0.0
+                return self._DEFAULT_ALPHA_SURPRISE
             return max(0.0, a)
         # Env-var path
         env = os.environ.get("TRUEMEMORY_ALPHA_SURPRISE")
@@ -1505,16 +1507,16 @@ class TrueMemoryEngine:
                 a = float(env)
             except ValueError:
                 logger.warning(
-                    "Invalid TRUEMEMORY_ALPHA_SURPRISE=%r; using 0.0", env,
+                    "Invalid TRUEMEMORY_ALPHA_SURPRISE=%r; using default", env,
                 )
-                return 0.0
+                return self._DEFAULT_ALPHA_SURPRISE
             if math.isnan(a) or math.isinf(a):
                 logger.warning(
-                    "Non-finite TRUEMEMORY_ALPHA_SURPRISE=%r; using 0.0", env,
+                    "Non-finite TRUEMEMORY_ALPHA_SURPRISE=%r; using default", env,
                 )
-                return 0.0
+                return self._DEFAULT_ALPHA_SURPRISE
             return max(0.0, a)
-        return 0.0
+        return self._DEFAULT_ALPHA_SURPRISE
 
     def _apply_surprise_boost(self, results: list[dict]) -> list[dict]:
         """Apply L5 surprise multiplicative boost to message-backed rows.
@@ -1523,8 +1525,7 @@ class TrueMemoryEngine:
         ``rerank_with_modality_fusion`` sorts on) so re-sort is coherent.
         Non-message rows and rows without a surprise score are left
         untouched. When ``alpha_surprise == 0.0`` this function is a
-        no-op that preserves result order byte-for-byte — the contract
-        the ``ship-α=0-default`` recommendation relies on.
+        no-op that preserves result order byte-for-byte.
         """
         if not results:
             return results
