@@ -1239,7 +1239,14 @@ class TrueMemoryEngine:
         # ── 7. Salience guard with mode-aware threshold (A5) ──────────────
         if self._has_salience and results:
             try:
-                min_sal = 0.02 if search_mode == "diffuse" else 0.05
+                _sal_override = os.environ.get("TRUEMEMORY_MIN_SALIENCE")
+                if _sal_override is not None:
+                    try:
+                        min_sal = float(_sal_override)
+                    except (ValueError, TypeError):
+                        min_sal = 0.02 if search_mode == "diffuse" else 0.05
+                else:
+                    min_sal = 0.02 if search_mode == "diffuse" else 0.05
                 results = apply_salience_guard(
                     results, query, conn=self.conn, min_salience=min_sal,
                 )
