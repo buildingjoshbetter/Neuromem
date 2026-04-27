@@ -7,16 +7,12 @@ deprecation warnings, and search_personality vector scoring.
 """
 from __future__ import annotations
 
-import json
 import math
 import sqlite3
 import warnings
 
-import pytest
-
 from truememory.personality_style_vec import (
     DIM,
-    NGRAM_SIZES,
     compute_style_vector,
     cosine_similarity,
     mean_pool_vectors,
