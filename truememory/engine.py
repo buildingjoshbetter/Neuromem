@@ -1235,6 +1235,10 @@ class TrueMemoryEngine:
             try:
                 personality_results = search_personality(self.conn, query, limit=5)
                 if personality_results:
+                    # MEMORIST-L0 score scaling: style_vec results enter at
+                    # 5.0+ (persona bias) which can displace factual results.
+                    # Scale them down so they compete fairly with hybrid scores.
+                    _l0_scale = float(os.environ.get("TRUEMEMORY_L0_SCORE_SCALE", "1.0"))
                     existing_ids = {r.get("id") for r in results if r.get("id")}
                     for pr in personality_results:
                         if "source" not in pr:
@@ -1243,6 +1247,8 @@ class TrueMemoryEngine:
                         # but don't completely dominate hybrid results.
                         if pr.get("source") == "profile":
                             pr["score"] = 0.8
+                        elif pr.get("source") == "style_vec":
+                            pr["score"] = pr.get("score", 0.0) * _l0_scale
                         pr_id = pr.get("id")
                         if pr_id and pr_id in existing_ids:
                             continue  # Already in results
