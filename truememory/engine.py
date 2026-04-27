@@ -1236,16 +1236,23 @@ class TrueMemoryEngine:
                 personality_results = search_personality(self.conn, query, limit=5)
                 if personality_results:
                     existing_ids = {r.get("id") for r in results if r.get("id")}
+                    max_existing = max(
+                        (r.get("score", 0) for r in results), default=0.05
+                    )
+                    _l0_scale_raw = os.environ.get("TRUEMEMORY_L0_SCORE_SCALE")
+                    try:
+                        _l0_scale = float(_l0_scale_raw) if _l0_scale_raw is not None else 0.9
+                    except (ValueError, TypeError):
+                        _l0_scale = 0.9
+                    _l0_scale = max(0.0, min(_l0_scale, 1.0))
                     for pr in personality_results:
                         if "source" not in pr:
                             pr["source"] = "personality"
-                        # Scale profile-sourced scores to 0.8 so they rank high
-                        # but don't completely dominate hybrid results.
-                        if pr.get("source") == "profile":
-                            pr["score"] = 0.8
+                        if pr.get("source") in ("profile", "style_vec", "fts"):
+                            pr["score"] = max_existing * (0.8 if pr["source"] == "profile" else _l0_scale)
                         pr_id = pr.get("id")
                         if pr_id and pr_id in existing_ids:
-                            continue  # Already in results
+                            continue
                         results.append(pr)
                         if pr_id:
                             existing_ids.add(pr_id)
@@ -1604,7 +1611,7 @@ class TrueMemoryEngine:
     # rationale and ``ISSUES.md`` for the follow-up validation plan.
 
     _SURPRISE_BOOST_SOURCE_BLOCKLIST = frozenset({
-        "personality", "profile", "summary", "contradiction",
+        "personality", "profile", "style_vec", "summary", "contradiction",
     })
     # IN-clause parameter chunk size. SQLite default is 999 variables —
     # keep a healthy margin for any other bound params in the query.
