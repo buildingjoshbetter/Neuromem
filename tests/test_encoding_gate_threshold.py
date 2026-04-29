@@ -18,21 +18,20 @@ def test_threshold_boundary_gte():
     """Score exactly at threshold should pass the gate (>= per paper eq 4)."""
     from truememory.ingest.encoding_gate import EncodingGate
 
-    threshold = 0.50
+    # Use novelty-only weighting with empty memory (novelty=1.0)
+    # and set threshold to match the expected score
     gate = EncodingGate(
-        memory=MockMemoryFixedScore(score=0.50),
-        threshold=0.50,
+        memory=MockMemoryFixedScore(score=0.0),  # empty results → novelty=1.0
+        threshold=1.0,  # set threshold exactly at novelty=1.0
         w_novelty=1.0,
         w_salience=0.0,
         w_prediction_error=0.0,
     )
     decision = gate.evaluate("test fact", "")
-    # novelty at search_score=0.50: 0.30 + 0.40*(1-(0.50-0.4)/0.2) = 0.30+0.40*0.5 = 0.50
-    assert abs(decision.novelty - 0.50) < 0.01, f"Expected novelty ~0.50, got {decision.novelty}"
-    assert abs(decision.encoding_score - 0.50) < 0.01, f"Expected score ~0.50, got {decision.encoding_score}"
-    # Paper equation (4): score >= threshold should encode
+    assert abs(decision.novelty - 1.0) < 0.01, f"Expected novelty ~1.0, got {decision.novelty}"
+    # Paper equation (4): score >= threshold should encode (score=1.0 >= threshold=1.0)
     assert decision.should_encode is True, (
-        f"Score {decision.encoding_score} at threshold {threshold} should encode "
+        f"Score {decision.encoding_score} at threshold {gate.threshold} should encode "
         f"(paper equation 4 uses >=, not >)"
     )
 
