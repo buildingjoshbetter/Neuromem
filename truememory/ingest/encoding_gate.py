@@ -461,7 +461,7 @@ class EncodingGate:
         if n == 0:
             return {"evaluated": 0}
 
-        passed = sum(1 for s in self._batch_scores if s > self.threshold)
+        passed = sum(1 for s in self._batch_scores if s >= self.threshold)
         blocked = n - passed
 
         def _stats(vals: list[float]) -> str:
