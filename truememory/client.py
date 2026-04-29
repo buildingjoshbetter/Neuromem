@@ -131,6 +131,28 @@ class Memory:
 
         return results[:limit]
 
+    def search_vectors(
+        self,
+        query: str,
+        limit: int = 5,
+    ) -> list[dict]:
+        """Search by pure vector cosine similarity (no FTS, no RRF fusion).
+
+        Returns results with ``score`` in [0, 1] based on cosine distance:
+        ``score = 1 / (1 + distance)``. Used by the encoding gate for
+        novelty detection where raw cosine similarity is needed instead
+        of the hybrid RRF score.
+
+        Falls back to regular search() if vector search is unavailable.
+        """
+        if self._engine.conn is None or not self._engine._has_vectors:
+            return self.search(query, limit=limit)
+        try:
+            from truememory.vector_search import search_vector
+            return search_vector(self._engine.conn, query, limit=limit)
+        except Exception:
+            return self.search(query, limit=limit)
+
     def search_deep(
         self,
         query: str,
