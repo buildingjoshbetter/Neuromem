@@ -136,6 +136,7 @@ class EncodingGate:
         w_novelty: Weight for the novelty signal.
         w_salience: Weight for the salience signal.
         w_prediction_error: Weight for the prediction error signal.
+        salience_floor: Minimum salience to even consider encoding (0.0 - 1.0).
         user_id: Optional user scope for memory searches.
     """
 
@@ -146,6 +147,7 @@ class EncodingGate:
         w_novelty: float | None = None,
         w_salience: float | None = None,
         w_prediction_error: float | None = None,
+        salience_floor: float | None = None,
         user_id: str = "",
     ):
         self.memory = memory
@@ -159,7 +161,9 @@ class EncodingGate:
         self.w_novelty = w_novelty
         self.w_salience = w_salience
         self.w_prediction_error = w_prediction_error
-        self.salience_floor = float(os.environ.get("TRUEMEMORY_GATE_SALIENCE_FLOOR", "0.10"))
+        if salience_floor is None:
+            salience_floor = float(os.environ.get("TRUEMEMORY_GATE_SALIENCE_FLOOR", "0.10"))
+        self.salience_floor = salience_floor
         self.user_id = user_id
         # Normalized weights so the final score lands in [0, 1]
         total = w_novelty + w_salience + w_prediction_error
@@ -192,11 +196,12 @@ class EncodingGate:
         # Salience floor: reject messages the salience scorer considers
         # pure noise, regardless of how novel or surprising they are.
         # Prevents high-novelty off-topic chatter from passing the gate.
-        if salience < self.salience_floor:
+        floored = salience < self.salience_floor
+        if floored:
             should_encode = False
         else:
             should_encode = score >= self.threshold
-        reason = self._explain(novelty, salience, pred_error, score, should_encode)
+        reason = self._explain(novelty, salience, pred_error, score, should_encode, floored)
 
         verdict = "ENCODE" if should_encode else "SKIP"
         log.debug(
@@ -447,9 +452,13 @@ class EncodingGate:
         pred_error: float,
         score: float,
         encode: bool,
+        floored: bool = False,
     ) -> str:
         """Human-readable explanation of the encoding decision."""
         parts = []
+
+        if floored:
+            parts.append(f"salience below floor ({self.salience_floor:.2f})")
 
         if novelty > 0.7:
             parts.append("novel")
