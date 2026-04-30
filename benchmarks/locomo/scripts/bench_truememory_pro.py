@@ -218,8 +218,9 @@ def retrieve_truememory_pro(conv_data, conv_idx):
     from truememory.vector_search import set_embedding_model
     set_embedding_model("pro")
     from truememory.engine import TrueMemoryEngine
-    from truememory.reranker import get_reranker
+    from truememory.reranker import get_reranker, set_active_tier
     import tempfile
+    set_active_tier("pro")
     get_reranker(model_name="Alibaba-NLP/gte-reranker-modernbert-base")
     llm_fn = _tm_make_hyde_fn()
     msgs = parse_conv(conv_data)

@@ -207,8 +207,9 @@ def retrieve_truememory_edge(conv_data, conv_idx):
     from truememory.vector_search import set_embedding_model
     set_embedding_model("edge")
     from truememory.engine import TrueMemoryEngine
-    from truememory.reranker import get_reranker
+    from truememory.reranker import get_reranker, set_active_tier
     import tempfile
+    set_active_tier("edge")
     get_reranker(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2")
     msgs = parse_conv(conv_data)
     _tmp_db_file = tempfile.NamedTemporaryFile(suffix=".db", prefix=f"edge_{conv_idx}_", delete=False)
