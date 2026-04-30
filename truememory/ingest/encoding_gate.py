@@ -310,14 +310,8 @@ class EncodingGate:
             return max(0.05, novelty)
 
         except Exception as e:
-            log.debug("Compression novelty failed, using cosine fallback: %s", e)
-            # Fallback to cosine similarity
-            top_score = results[0].get("score", 0.0)
-            try:
-                top_score = float(top_score)
-            except (TypeError, ValueError):
-                top_score = 0.0
-            return max(0.05, 1.0 - max(0.0, min(1.0, top_score)))
+            log.warning("Compression novelty failed: %s — returning neutral 0.5", e)
+            return 0.5
 
     # ------------------------------------------------------------------
     # Signal 2: Salience — delegates to truememory.salience when available
