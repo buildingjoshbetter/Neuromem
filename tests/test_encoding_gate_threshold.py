@@ -1,7 +1,5 @@
 """Test that the encoding gate threshold uses >= (paper equation 4)."""
 
-import pytest
-
 
 class MockMemoryFixedScore:
     """Returns results with a controlled score to produce a known gate score.
