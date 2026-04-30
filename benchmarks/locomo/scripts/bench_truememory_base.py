@@ -208,8 +208,9 @@ def retrieve_truememory_base(conv_data, conv_idx):
     from truememory.vector_search import set_embedding_model
     set_embedding_model("base")
     from truememory.engine import TrueMemoryEngine
-    from truememory.reranker import get_reranker
+    from truememory.reranker import get_reranker, set_active_tier
     import tempfile
+    set_active_tier("base")
     get_reranker(model_name="Alibaba-NLP/gte-reranker-modernbert-base")
     msgs = parse_conv(conv_data)
     _tmp_db_file = tempfile.NamedTemporaryFile(suffix=".db", prefix=f"base_{conv_idx}_", delete=False)
