@@ -77,14 +77,19 @@ if not _HAS_TRUEMEMORY_SALIENCE:
         "for the full salience signal."
     )
 
-# Noise set for PE — messages too short or trivial to have prediction error.
-_PE_NOISE = frozenset({
-    "ok", "okay", "k", "kk", "yes", "yeah", "yep", "yup", "ya", "yea",
-    "no", "nah", "nope", "lol", "lmao", "haha", "hahaha", "heh",
-    "nice", "cool", "thanks", "thx", "ty", "got it", "gotcha",
-    "sounds good", "sure", "bet", "word", "same", "mood", "idk",
-    "gn", "gm", "brb", "ttyl", "damn", "dude", "bro", "ugh", "wow",
-})
+# Reuse the salience scorer's noise set for PE — avoids maintaining two
+# copies of the same word list. Falls back to a minimal set if the
+# salience module isn't available.
+try:
+    from truememory.ingest.encoding_salience import _NOISE_EXACT_V23 as _PE_NOISE
+except ImportError:
+    _PE_NOISE = frozenset({
+        "ok", "okay", "k", "kk", "yes", "yeah", "yep", "yup",
+        "no", "nah", "nope", "lol", "lmao", "haha", "hahaha",
+        "nice", "cool", "thanks", "thx", "ty", "got it", "gotcha",
+        "sounds good", "sure", "bet", "word", "same", "mood", "idk",
+        "gn", "gm", "brb", "ttyl", "damn", "dude", "bro", "ugh", "wow",
+    })
 
 
 @dataclass
@@ -157,6 +162,7 @@ class EncodingGate:
         total = w_novelty + w_salience + w_prediction_error
         self._norm = total if total > 0 else 1.0
         self._last_search_results: list[dict] = []
+        self._embed_model = None
         self._batch_scores: list[float] = []
         self._batch_novelties: list[float] = []
         self._batch_saliences: list[float] = []
@@ -366,11 +372,13 @@ class EncodingGate:
         if not self._last_search_results:
             return 0.0
 
-        try:
-            from truememory.vector_search import get_model
-            model = get_model()
-        except Exception:
-            return 0.0
+        if self._embed_model is None:
+            try:
+                from truememory.vector_search import get_model
+                self._embed_model = get_model()
+            except Exception:
+                return 0.0
+        model = self._embed_model
 
         nearest = self._last_search_results[0]
         mem_content = nearest.get("content", "")
