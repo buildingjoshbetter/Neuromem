@@ -13,10 +13,11 @@
   <img src="https://img.shields.io/badge/Edge-89.6%25_LoCoMo-brightgreen" alt="Edge Score">
   <img src="https://img.shields.io/badge/Base-92.0%25_LoCoMo-blue" alt="Base Score">
   <img src="https://img.shields.io/badge/Pro-93.0%25_LoCoMo-blueviolet" alt="Pro Score">
+  <img src="https://img.shields.io/badge/Pro-75.0%25_BEAM--1M-orange" alt="BEAM Score">
 </p>
 
 <p align="center">
-  <strong>🏆 93.0% on LoCoMo (Pro) · 📦 One SQLite File · ☁️ Zero Cloud · 💰 Zero Infrastructure Cost</strong>
+  <strong>🏆 93.0% on LoCoMo (Pro) · 75.0% on BEAM-1M · 📦 One SQLite File · ☁️ Zero Cloud · 💰 Zero Infrastructure Cost</strong>
 </p>
 
 <p align="center">
