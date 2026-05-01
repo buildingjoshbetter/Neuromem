@@ -214,7 +214,7 @@ All configuration is via environment variables. Defaults work out of the box —
 | `TRUEMEMORY_MIN_MESSAGES` | `5` | Minimum messages in a session before extraction runs |
 | `TRUEMEMORY_INGEST_SPAWN_CAP` | `2` | Max concurrent background ingestion processes |
 | `TRUEMEMORY_ENTITY_SHEETS` | _(off)_ | Set to `1` to re-enable legacy L4 entity profiles |
-| `TRUEMEMORY_ALPHA_SURPRISE` | _(off)_ | L5 surprise rerank boost alpha (e.g. `0.2`) |
+| `TRUEMEMORY_ALPHA_SURPRISE` | `0.2` | L5 surprise rerank boost alpha (set to `0` to disable) |
 
 ---
 

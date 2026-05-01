@@ -27,7 +27,7 @@ not their *mechanism*. What you see in this code is a pragmatic proxy:
   self-pair. When the pair embedding diverges from the self-pair
   embedding, the message says something different about the same topic.
   Validated in 200-variant sweep (v1+v2): AUC 0.730 standalone, gate
-  AUC 0.796. Real predictive coding is Bayesian error propagation up a
+  AUC 0.810. Real predictive coding is Bayesian error propagation up a
   hierarchical generative model.
 
 The delegation to `truememory.salience` for salience scoring is
@@ -38,7 +38,7 @@ falls back to internal heuristics. Prediction error uses an
 embedding-based scorer that is independent of L5's surprise module.
 
 **What a skeptical reader should know**: the final encoding decision is
-`0.25 * novelty + 0.20 * salience + 0.30 * prediction_error >= 0.26`
+`0.25 * novelty + 0.20 * salience + 0.30 * prediction_error >= 0.30`
 (with a salience floor of 0.10 — messages below the floor are rejected
 regardless of gate score).
 The neuroscience names describe what each term is *inspired by*, not a
