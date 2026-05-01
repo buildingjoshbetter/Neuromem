@@ -18,4 +18,4 @@ What you expected to happen.
 - OS:
 - Python version:
 - truememory version:
-- Tier (Base/Pro):
+- Tier (Edge/Base/Pro):

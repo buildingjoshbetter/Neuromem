@@ -5,7 +5,7 @@
 If you discover a security vulnerability in TrueMemory, please report it responsibly:
 
 1. **Do not** open a public GitHub issue.
-2. Email **security@sauronlabs.ai** with a description of the vulnerability.
+2. Email **buildingjoshbetter@gmail.com** with a description of the vulnerability.
 3. Include steps to reproduce if possible.
 
 We will acknowledge receipt within 48 hours and provide a fix timeline within 7 days.
