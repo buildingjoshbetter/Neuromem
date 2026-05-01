@@ -638,7 +638,8 @@ class TrueMemoryEngine:
         self.conn = sqlite3.connect(str(self.db_path))
         self.conn.row_factory = None  # Use default tuple rows
         self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.execute("PRAGMA busy_timeout=5000")
+        from truememory.storage import DEFAULT_BUSY_TIMEOUT_MS
+        self.conn.execute(f"PRAGMA busy_timeout={DEFAULT_BUSY_TIMEOUT_MS}")
 
         # Detect available tables
         tables = {
@@ -1040,9 +1041,10 @@ class TrueMemoryEngine:
                 try:
                     row = self.conn.execute(
                         "SELECT sender, COUNT(*) as cnt FROM messages "
+                        "WHERE sender != '' AND sender IS NOT NULL "
                         "GROUP BY sender ORDER BY cnt DESC LIMIT 1"
                     ).fetchone()
-                    if row:
+                    if row and row[0] and row[0].strip():
                         primary = row[0]
                 except Exception:
                     pass
