@@ -206,6 +206,16 @@ def _llm_dedup(
         return DedupDecision(action=DedupAction.ADD, fact=fact, reason=reason)
 
 
+def _word_overlap(a: str, b: str) -> float:
+    """Jaccard similarity on word sets."""
+    words_a = set(a.lower().split())
+    words_b = set(b.lower().split())
+    union = words_a | words_b
+    if not union:
+        return 0.0
+    return len(words_a & words_b) / len(union)
+
+
 def _heuristic_dedup(
     fact: str,
     existing: str,
@@ -213,11 +223,10 @@ def _heuristic_dedup(
     similarity: float,
 ) -> DedupDecision:
     """Heuristic dedup when no LLM is available."""
-    # Normalize for comparison
     fact_norm = fact.lower().strip()
     existing_norm = existing.lower().strip()
 
-    # Check if one contains the other (subsumption)
+    # Substring containment — one is a subset of the other
     if fact_norm in existing_norm:
         return DedupDecision(
             action=DedupAction.SKIP,
@@ -236,9 +245,30 @@ def _heuristic_dedup(
             reason="new fact expands on existing memory",
         )
 
-    # High similarity but different content — likely an update
+    # Word-overlap check — catches rephrased duplicates that substring
+    # matching misses. If >60% of words are shared, these facts are
+    # about the same thing. The newer one supersedes the older.
+    jaccard = _word_overlap(fact_norm, existing_norm)
+    if jaccard > 0.60:
+        if len(fact_norm) >= len(existing_norm):
+            return DedupDecision(
+                action=DedupAction.UPDATE,
+                fact=fact,
+                existing_id=existing_id,
+                existing_content=existing,
+                reason=f"rephrased duplicate (word overlap {jaccard:.0%})",
+            )
+        else:
+            return DedupDecision(
+                action=DedupAction.SKIP,
+                fact=fact,
+                existing_id=existing_id,
+                existing_content=existing,
+                reason=f"shorter restatement of existing (word overlap {jaccard:.0%})",
+            )
+
+    # High embedding similarity + update markers — likely a correction
     if similarity > 0.75:
-        # Check if it looks like a correction or update
         for marker in ["no longer", "not anymore", "now", "switched", "changed", "moved", "actually"]:
             if marker in fact_norm:
                 return DedupDecision(
