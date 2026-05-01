@@ -11,10 +11,12 @@ faithful computational model of it. The three-signal gating architecture
 mirrors the *function* of hippocampal / amygdala / prefrontal circuits,
 not their *mechanism*. What you see in this code is a pragmatic proxy:
 
-- **Novelty** is vector-similarity inversion via truememory's hybrid
-  search. A novel fact is one whose content is dissimilar to existing
-  memories. Real CA1 novelty detection involves CA3→CA1 pattern
-  completion, oscillatory dynamics, and sparse coding we don't model.
+- **Novelty** uses gzip compression cost against stored memories.
+  Novel information compresses poorly against a memory-trained model;
+  redundant information compresses cheaply. Validated in 120-variant
+  sweep: AUC 0.788 vs 0.484 for cosine baseline. Real CA1 novelty
+  detection involves CA3→CA1 pattern completion, oscillatory dynamics,
+  and sparse coding we don't model.
 
 - **Salience** delegates to truememory's existing
   `salience.compute_message_salience` (which scores length, numbers,
@@ -27,7 +29,7 @@ not their *mechanism*. What you see in this code is a pragmatic proxy:
   self-pair. When the pair embedding diverges from the self-pair
   embedding, the message says something different about the same topic.
   Validated in 200-variant sweep (v1+v2): AUC 0.730 standalone, gate
-  AUC 0.796. Real predictive coding is Bayesian error propagation up a
+  AUC 0.810. Real predictive coding is Bayesian error propagation up a
   hierarchical generative model.
 
 The delegation to `truememory.salience` for salience scoring is
@@ -38,7 +40,7 @@ falls back to internal heuristics. Prediction error uses an
 embedding-based scorer that is independent of L5's surprise module.
 
 **What a skeptical reader should know**: the final encoding decision is
-`0.25 * novelty + 0.20 * salience + 0.30 * prediction_error >= 0.26`
+`0.25 * novelty + 0.20 * salience + 0.30 * prediction_error >= 0.30`
 (with a salience floor of 0.10 — messages below the floor are rejected
 regardless of gate score).
 The neuroscience names describe what each term is *inspired by*, not a
@@ -147,7 +149,7 @@ class EncodingGate:
     def __init__(
         self,
         memory,
-        threshold: float = 0.26,
+        threshold: float = 0.30,
         w_novelty: float | None = None,
         w_salience: float | None = None,
         w_prediction_error: float | None = None,

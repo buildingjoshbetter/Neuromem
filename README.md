@@ -10,13 +10,13 @@
   <a href="https://pypi.org/project/truememory/"><img src="https://img.shields.io/pypi/v/truememory?color=blue&label=PyPI" alt="PyPI"></a>
   <a href="https://pypi.org/project/truememory/"><img src="https://img.shields.io/pypi/pyversions/truememory?color=blue" alt="Python"></a>
   <a href="https://github.com/buildingjoshbetter/TrueMemory/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License"></a>
-  <img src="https://img.shields.io/badge/Edge-90.1%25_LoCoMo-brightgreen" alt="Edge Score">
-  <img src="https://img.shields.io/badge/Base-91.5%25_LoCoMo-blue" alt="Base Score">
-  <img src="https://img.shields.io/badge/Pro-91.8%25_LoCoMo-blueviolet" alt="Pro Score">
+  <img src="https://img.shields.io/badge/Edge-89.6%25_LoCoMo-brightgreen" alt="Edge Score">
+  <img src="https://img.shields.io/badge/Base-92.0%25_LoCoMo-blue" alt="Base Score">
+  <img src="https://img.shields.io/badge/Pro-93.0%25_LoCoMo-blueviolet" alt="Pro Score">
 </p>
 
 <p align="center">
-  <strong>🏆 91.8% on LoCoMo (Pro) · 📦 One SQLite File · ☁️ Zero Cloud · 💰 Zero Infrastructure Cost</strong>
+  <strong>🏆 93.0% on LoCoMo (Pro) · 📦 One SQLite File · ☁️ Zero Cloud · 💰 Zero Infrastructure Cost</strong>
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@
 
 Tested on [LoCoMo](https://github.com/snap-research/locomo), the standard benchmark for conversational memory. 1,540 questions across 10 conversations. All 8 systems share the same answer model, judge, scoring, top-k, and byte-identical answer prompt — only retrieval differs.
 
-> **Note on charts:** the hero banner and the three charts below still show the v0.3.0 single-Pro-tier layout (91.5%). Chart regeneration is tracked for a later release; all numerical claims in the README text and tables reflect the v0.4.0 three-tier scores (90.1 / 91.5 / 91.8%).
+> **Note on charts:** the hero banner and the three charts below still show the v0.3.0 single-Pro-tier layout. Chart regeneration is tracked for a later release; all numerical claims in the README text and tables reflect the current 3-run mean scores (89.6 / 92.0 / 93.0%).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/buildingjoshbetter/TrueMemory/main/assets/charts/leaderboard-bar.png?v=2" alt="LoCoMo 8-System Comparison" />
@@ -47,17 +47,17 @@ All scores use the same evaluation pipeline: GPT-4.1-mini answer generation, GPT
 
 ## ⚡ Research Highlights
 
-- **30+ percentage points more accurate than Mem0** on LoCoMo (91.8% Pro vs 61.4%)
+- **30+ percentage points more accurate than Mem0** on LoCoMo (93.0% Pro vs 61.4%)
 - **2x more cost-efficient** per correct answer than Mem0
 - **Runs offline** on any device with Python 3.10+ and 512MB RAM (Edge tier)
 - **One SQLite file, zero API keys** for Edge and Base tiers. The entire 6-layer system runs offline.
-- **Within 2.7pp of EverMemOS**, the only higher-scoring system — and EverMemOS uses pre-computed retrieval rather than live search at query time.
+- **Within 1.5pp of EverMemOS**, the only higher-scoring system — and EverMemOS uses pre-computed retrieval rather than live search at query time.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/buildingjoshbetter/TrueMemory/main/assets/charts/category-radar.png?v=2" alt="Category Breakdown" />
 </p>
 
-TrueMemory Pro nearly matches EverMemOS across all 4 question categories. Mem0 collapses on multi-hop reasoning (37.7% vs 90.7%).
+TrueMemory Pro nearly matches EverMemOS across all 4 question categories. Mem0 collapses on multi-hop reasoning (37.7% vs 90.0%).
 
 ---
 
@@ -67,7 +67,7 @@ Same features, same 6-layer pipeline. Three tiers trade off install size, hardwa
 
 | | Edge | Base | Pro |
 |---|------|------|-----|
-| **LoCoMo** | 90.1% | 91.5% | 91.8% |
+| **LoCoMo** (3-run mean ± std) | 89.6% ±0.19 | 92.0% ±0.22 | 93.0% ±0.14 |
 | **Embedder** | Model2Vec potion-base-8M (8M params, 256d) | Qwen3-Embedding-0.6B @ 256d Matryoshka (600M params) | Qwen3-Embedding-0.6B @ 256d Matryoshka (600M params) |
 | **Reranker** | ms-marco-MiniLM-L-6-v2 (22M) | gte-reranker-modernbert-base (149M) | gte-reranker-modernbert-base (149M) |
 | **HyDE** | off | off | on (requires an LLM API key) |
@@ -76,6 +76,16 @@ Same features, same 6-layer pipeline. Three tiers trade off install size, hardwa
 | **Speed** | Ultra-fast | Fast | Fast + 1 LLM call/query |
 
 **Edge** works everywhere. **Base** is the strongest fully-offline tier. **Pro** adds HyDE for the highest LoCoMo score.
+
+### Encoding Gate
+
+Before storing a fact, the ingestion pipeline passes it through an encoding gate — a three-signal filter inspired by hippocampal novelty detection. Each candidate fact is scored by:
+
+1. **Compression novelty** (AUC 0.788) — gzip-based information gain against existing memories
+2. **Speech-act salience** (AUC 0.733) — rule-based scorer for short messages + L3's learned salience for longer text
+3. **Embedding pair-diff PE** (AUC 0.730) — detects when a message says something *different* about the same topic
+
+The weighted sum (default: `0.25·novelty + 0.20·salience + 0.30·PE`, normalized) must exceed a threshold (default: 0.30) to be stored. A salience floor (default: 0.10) rejects pure noise regardless of novelty. Per-category overrides lower the bar for corrections and decisions. Gate AUC: 0.810. Tune via `TRUEMEMORY_GATE_*` environment variables (see [Configuration](#configuration)).
 
 ---
 
@@ -101,11 +111,11 @@ curl -LsSf https://raw.githubusercontent.com/buildingjoshbetter/TrueMemory/main/
 
 > **What this actually does:** installs [uv](https://docs.astral.sh/uv/) (Astral's Python tool manager) if needed, fetches a managed Python 3.12 into `~/.local/share/uv/`, installs TrueMemory into an isolated tool environment, and auto-configures Claude Code and Claude Desktop. **Your system Python is never touched.** No sudo, no venvs, no pip struggle. Uninstall cleanly with `uv tool uninstall truememory`.
 
-> **Want to audit the script first?** It's ~140 lines of shell, no sudo, stays entirely under `$HOME`. Read the source at [`install.sh`](https://github.com/buildingjoshbetter/TrueMemory/blob/main/install.sh), or download and inspect locally: `curl -LsSf https://raw.githubusercontent.com/buildingjoshbetter/TrueMemory/main/install.sh -o install.sh && less install.sh && sh install.sh`.
+> **Want to audit the script first?** It's ~170 lines of shell, no sudo, stays entirely under `$HOME`. Read the source at [`install.sh`](https://github.com/buildingjoshbetter/TrueMemory/blob/main/install.sh), or download and inspect locally: `curl -LsSf https://raw.githubusercontent.com/buildingjoshbetter/TrueMemory/main/install.sh -o install.sh && less install.sh && sh install.sh`.
 
 > **Want Base or Pro (adds Qwen3 embeddings + gte-reranker + sentence-transformers, ~1.5-2.5GB depending on OS)?**
 > ```bash
-> curl -LsSf https://raw.githubusercontent.com/buildingjoshbetter/TrueMemory/main/install.sh | TRUEMEMORY_EXTRAS="gpu,mcp" sh
+> curl -LsSf https://raw.githubusercontent.com/buildingjoshbetter/TrueMemory/main/install.sh | TRUEMEMORY_EXTRAS="gpu" sh
 > ```
 > The default install is **Edge** (~30MB, the CPU-only tier). If you pick Base or Pro during first-run setup, TrueMemory will prompt you to install the extra models. Pro additionally requires an LLM API key at runtime for HyDE.
 > *(Linux CPU-only boxes will pull PyTorch's default CUDA wheel, which is larger — ~2.5GB total. Mac installs are closer to ~1.5GB.)*
@@ -138,22 +148,14 @@ The database is created automatically at `~/.truememory/memories.db`.
 
 Claude forgets you between sessions. TrueMemory fixes that.
 
-On your first session after installing, TrueMemory will:
+The installer (`install.sh`) wires up four lifecycle hooks (SessionStart, Stop, UserPromptSubmit, PreCompact) and merges instructions into your `~/.claude/CLAUDE.md`. On your **first session** after installing, the SessionStart hook injects an ASCII banner and guided setup:
 
-1. **Welcome you** and show your current version
-2. **Ask Edge / Base / Pro** — you choose your accuracy tier
-3. **Optionally accept an API key** — required for Pro (HyDE query expansion via Anthropic, OpenRouter, or OpenAI); optional for Edge and Base
-4. **Show you how it works** — with example prompts to try
+1. **Welcome banner** — confirms TrueMemory is installed
+2. **Tier selection** — Edge, Base, or Pro (Claude walks you through it)
+3. **API key** (Pro only) — required for HyDE query expansion via Anthropic, OpenRouter, or OpenAI
+4. **Example prompts** — try "Remember that I prefer dark mode" then verify in a new session
 
-After setup, TrueMemory runs automatically. It stores what you tell it and recalls it in future sessions — no manual work needed.
-
-### Make it automatic (optional)
-
-Copy [`CLAUDE.md.example`](https://github.com/buildingjoshbetter/TrueMemory/blob/main/CLAUDE.md.example) to your home directory as `CLAUDE.md`. This tells Claude to store your preferences and recall them without being asked:
-
-```bash
-cp CLAUDE.md.example ~/CLAUDE.md
-```
+On **subsequent sessions**, the SessionStart hook searches TrueMemory and injects up to 25 relevant memories as context so Claude knows who you are from the start. The Stop hook processes the conversation transcript in the background to extract and store new facts.
 
 ### Manual setup
 
@@ -185,7 +187,7 @@ claude mcp add truememory -- truememory-mcp
   "mcpServers": {
     "truememory": {
       "command": "/Users/YOU/.local/bin/uvx",
-      "args": ["--python", "3.12", "--from", "truememory[mcp]", "truememory-mcp"]
+      "args": ["--python", "3.12", "--from", "truememory", "truememory-mcp"]
     }
   }
 }
@@ -197,7 +199,22 @@ uvx creates a cached environment on first run; subsequent spawns are fast. Good 
 
 ## Configuration
 
-- `TRUEMEMORY_ENTITY_SHEETS=1` — re-enable the legacy L4 entity-profile writer (disabled by default in v0.6.0+). **Set before first `open()`** to preserve existing legacy rows on upgrade. Accepts `1`, `true`, `yes`, `on` (case-insensitive).
+All configuration is via environment variables. Defaults work out of the box — only set these to tune behavior.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TRUEMEMORY_EMBED_MODEL` | `edge` | Active tier: `edge`, `base`, or `pro` |
+| `TRUEMEMORY_RECALL_LIMIT` | `25` | Memories injected at session start |
+| `TRUEMEMORY_GATE_ENABLED` | `1` | Enable/disable the encoding gate (`0` to disable) |
+| `TRUEMEMORY_GATE_THRESHOLD` | `0.30` | Gate threshold (0.0–1.0). Lower = stores more |
+| `TRUEMEMORY_GATE_W_NOVELTY` | `0.25` | Weight for compression novelty signal |
+| `TRUEMEMORY_GATE_W_SALIENCE` | `0.20` | Weight for speech-act salience signal |
+| `TRUEMEMORY_GATE_W_PE` | `0.30` | Weight for embedding pair-diff prediction error |
+| `TRUEMEMORY_GATE_SALIENCE_FLOOR` | `0.10` | Minimum salience to consider encoding |
+| `TRUEMEMORY_MIN_MESSAGES` | `5` | Minimum messages in a session before extraction runs |
+| `TRUEMEMORY_INGEST_SPAWN_CAP` | `2` | Max concurrent background ingestion processes |
+| `TRUEMEMORY_ENTITY_SHEETS` | _(off)_ | Set to `1` to re-enable legacy L4 entity profiles |
+| `TRUEMEMORY_ALPHA_SURPRISE` | `0.2` | L5 surprise rerank boost alpha (set to `0` to disable) |
 
 ---
 
@@ -235,7 +252,7 @@ Every benchmark script is self-contained and runs on [Modal](https://modal.com).
   organization = {Sauron},
   year = {2026},
   url = {https://github.com/buildingjoshbetter/TrueMemory},
-  version = {0.4.0}
+  version = {0.5.0}
 }
 ```
 

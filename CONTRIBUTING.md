@@ -12,7 +12,7 @@ standalone module in `truememory/`:
 | L0 | Personality Engram | `personality.py` — entity profiles, communication patterns, preferences |
 | L1 | Working Memory | Deferred (not yet implemented) |
 | L2 | Episodic | `fts_search.py` — FTS5 keyword search + temporal filtering |
-| L3 | Semantic | `vector_search.py`, `hybrid.py` — Model2Vec vectors + RRF fusion |
+| L3 | Semantic | `vector_search.py`, `hybrid.py` — dense vectors (Model2Vec or Qwen3 by tier) + RRF fusion |
 | L4 | Salience Guard | `salience.py` — noise filtering + entity boosting |
 | L5 | Consolidation | `consolidation.py`, `predictive.py` — summaries, contradiction resolution, predictive coding |
 
@@ -64,4 +64,4 @@ Include your Python version, OS, and steps to reproduce.
 ## License
 
 By contributing, you agree that your contributions will be licensed under
-the [Apache 2.0 License](LICENSE).
+the [AGPL-3.0 License](LICENSE).

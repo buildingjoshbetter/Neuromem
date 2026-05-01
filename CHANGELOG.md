@@ -3,47 +3,66 @@
 ## [0.6.0] — 2026-04-XX
 
 ### Added
-- **L5 surprise rerank boost** — retrieval now reweights candidates by
-  `(1 + α · surprise)` using the `surprise_scores` table populated at
-  ingest. Default α=0.2 (tuned via Modal alpha sweep, 2026-04-26).
-  Override via `Memory(alpha_surprise=…)` or `TRUEMEMORY_ALPHA_SURPRISE`
-  env var. Set to `0` to disable.
+- **Encoding gate** (`encoding_gate.py`) — three-signal filter for incoming facts.
+  Compression novelty (AUC 0.788), speech-act salience (AUC 0.733), and embedding
+  pair-diff prediction error (AUC 0.730) are combined into a weighted score
+  (default: `0.25·novelty + 0.20·salience + 0.30·PE`, threshold 0.30). Gate AUC
+  0.810. Weights tuned via multi-hundred-config sweep across weights, thresholds,
+  and salience floors. Configurable via `TRUEMEMORY_GATE_*`
+  env vars. Disable entirely with `TRUEMEMORY_GATE_ENABLED=0`. (#103–#123)
+  - **Compression novelty** replaces cosine similarity inversion (#107, #116).
+    Cosine distance is anti-correlated with novelty in conversational data;
+    gzip compression cost measures statistical redundancy instead.
+  - **Speech-act salience** (#108, #115). Rule-based scorer for short messages
+    (≤50 chars) with speech-act classification; L3's learned scorer for longer text.
+  - **Embedding pair-diff PE** replaces L5 surprise delegate (#109, #117). Embeds
+    (message, nearest_memory) pair vs (memory, memory) self-pair; divergence = PE.
+    Independent of L5 — no longer depends on `truememory.predictive` for encoding.
+  - **Salience floor** (#118, #122): messages below `TRUEMEMORY_GATE_SALIENCE_FLOOR`
+    (default 0.10) are rejected regardless of gate score.
+  - **Per-category threshold overrides** (#123): corrections (−0.06), decisions
+    (−0.04), and relationships (−0.04) get a lower bar to pass the gate.
+- **First-run onboarding** (#131) — SessionStart hook now shows an ASCII banner
+  and guided tier-selection setup on first launch (no `~/.truememory/.onboarded`
+  marker). Subsequent sessions inject up to 25 memories (configurable via
+  `TRUEMEMORY_RECALL_LIMIT`) with balanced per-query caps and content-based dedup.
+- **Hook installation** (#128) — `install.sh` now calls `truememory-ingest install`
+  to wire up SessionStart, Stop, UserPromptSubmit, and PreCompact hooks and merge
+  instructions into `~/.claude/CLAUDE.md`.
+- **CLAUDE.md precedence** (#130) — template now explicitly asserts TrueMemory as
+  the primary long-horizon memory, with built-in auto-memory for session notes only.
+- **L5 surprise rerank boost** — retrieval reweights candidates by
+  `(1 + α · surprise)` using the `surprise_scores` table populated at ingest.
+  Default α=0.2 (tuned via Modal alpha sweep). Override via
+  `Memory(alpha_surprise=…)` or `TRUEMEMORY_ALPHA_SURPRISE`. Set to `0` to disable.
 
 ### Changed
+- **License: AGPL-3.0** replaces Apache-2.0. Free for personal and research use;
+  commercial use requires a separate license.
+- **MCP registration** (#129) — `truememory-mcp --setup` now registers at user scope
+  (not project scope) so TrueMemory is available across all projects.
+- **Hook schema** (#126) — hooks now use the correct `{matcher, hooks}` format
+  required by Claude Code.
+- **Session injection dedup** (#131) — word-overlap Jaccard check added to heuristic
+  dedup to catch rephrased duplicates in session start context.
 - **L3 salience reweighter: learned weights replace hand-tuned deltas.**
   The 13-factor message salience scorer now uses logistic regression weights
   trained on LoCoMo retrieval-utility labels (+0.045 AUC, p=0.012 vs hand-tuned
   baseline). Key corrections: message length upweighted ~30×, arousal/date/newline
   sign flips fixed. Falls back to the legacy additive scorer if weight file is
-  missing. See `_working/memorist/l3_salience/REPORT.md`.
-- **L4 `build_entity_summary_sheets` disabled by default** per
-  MEMORIST-L4 research (2026-04-23): the function produced monolithic
-  per-entity profile rows that saturated top-1 retrieval and leaked
-  superseded facts into contradiction scoring. Disabling is Pareto-
-  dominant (+5.3% relative composite probe metric, +3.2 pts contradiction
-  accuracy, −4 KB/persona storage).
-
-  - **Escape hatch:** set `TRUEMEMORY_ENTITY_SHEETS=1` (also accepts
-    `true`, `yes`, `on`, case-insensitive) **before first engine
-    `open()`** to retain legacy behavior. Setting the var after the
-    initial upgrade-open will not restore already-purged rows — the
-    next `consolidate()` will write them fresh.
-  - **One-time migration on `open()`** purges legacy
-    `period='entity_profile'` summary rows for upgraders. Guarded by a
-    `l4_entity_profile_migration_done` flag in the `metadata` table so
-    subsequent opens skip the scan.
-  - **DeprecationWarning** now emitted when `build_entity_summary_sheets`
-    is called directly (e.g., by a user re-enabling via env var).
-  - **Failure visibility:** the migration's exception path now logs at
-    WARNING (was DEBUG) so silent failures on a destructive operation
-    surface in production logs.
+  missing.
+- **L4 `build_entity_summary_sheets` disabled by default** per MEMORIST-L4 research:
+  monolithic per-entity rows saturated top-1 retrieval and leaked superseded facts.
+  Disabling is Pareto-dominant (+5.3% relative composite, +3.2 pts contradiction
+  accuracy, −4 KB/persona storage). Escape hatch: `TRUEMEMORY_ENTITY_SHEETS=1`.
 - **L0 personality: char-n-gram style vectors replace keyword extraction.**
   Per-entity style profiles now use 256-d hashed char-n-gram vectors
   (MEMORIST-L0 C3c winner, 0.686 accuracy vs 0.271 for hand-tuned keywords).
   Retrieval scoring uses cosine similarity for persona-scoped reranking.
-  Josh-specific keyword tokens removed. Legacy `_extract_topics` and
-  `_extract_traits` deprecated with one-release sunset.
-  See `_working/memorist/l0_personality/REPORT.md`.
+
+### Fixed
+- **Bench scripts** (#125) — now call `set_active_tier()` before `get_reranker()`
+  so benchmarks use the correct tier-specific reranker.
 
 ## [0.5.0] - 2026-04-23
 
