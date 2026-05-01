@@ -68,6 +68,7 @@ Same features, same 6-layer pipeline. Three tiers trade off install size, hardwa
 | | Edge | Base | Pro |
 |---|------|------|-----|
 | **LoCoMo** (3-run mean ± std) | 89.6% ±0.19 | 92.0% ±0.22 | 93.0% ±0.14 |
+| **BEAM 1M** | — | — | 75.0% |
 | **Embedder** | Model2Vec potion-base-8M (8M params, 256d) | Qwen3-Embedding-0.6B @ 256d Matryoshka (600M params) | Qwen3-Embedding-0.6B @ 256d Matryoshka (600M params) |
 | **Reranker** | ms-marco-MiniLM-L-6-v2 (22M) | gte-reranker-modernbert-base (149M) | gte-reranker-modernbert-base (149M) |
 | **HyDE** | off | off | on (requires an LLM API key) |
