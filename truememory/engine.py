@@ -183,6 +183,7 @@ _QUERY_STOP_WORDS = frozenset({
     "about", "their", "they", "them", "his", "her", "its",
 })
 
+
 def _has_personality_intent(query: str) -> bool:
     """
     Return True if the query is genuinely asking about personality, preferences,
@@ -1954,10 +1955,6 @@ Return ONLY the queries, one per line, no numbering or explanation:"""
                     logger.debug("Focused content search failed in entity search", exc_info=True)
 
         return results
-
-    # ──────────────────────────────────────────────────────────────────────
-    # Query paraphrasing helper
-    # ──────────────────────────────────────────────────────────────────────
 
     # ──────────────────────────────────────────────────────────────────────
     # Result cleaning helper

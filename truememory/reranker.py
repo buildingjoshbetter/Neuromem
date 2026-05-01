@@ -191,6 +191,8 @@ def _normalize_and_fuse(
     top_k: int,
 ) -> list[dict]:
     """Normalize rerank + original scores to [0,1] and fuse."""
+    if not reranked:
+        return []
     rerank_scores = [r["rerank_score"] for r in reranked]
     rr_min, rr_max = min(rerank_scores), max(rerank_scores)
     rr_range = rr_max - rr_min if rr_max > rr_min else 1.0
