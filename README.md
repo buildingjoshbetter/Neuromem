@@ -3,6 +3,10 @@
 </p>
 
 <p align="center">
+  <em>a <strong>sauron company</strong></em>
+</p>
+
+<p align="center">
   One SQLite file. Zero cloud. One command to set up.
 </p>
 
@@ -263,3 +267,9 @@ Every benchmark script is self-contained and runs on [Modal](https://modal.com).
 ## ⚖️ License
 
 Licensed under [AGPL-3.0](https://github.com/buildingjoshbetter/TrueMemory/blob/main/LICENSE). Free for personal and research use. Commercial use requires a separate license — contact josh@sauronlabs.ai.
+
+---
+
+<p align="center">
+  <em>TrueMemory, a <strong>sauron company</strong> · <a href="https://sauronlabs.ai">sauronlabs.ai</a></em>
+</p>
