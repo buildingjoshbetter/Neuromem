@@ -1081,6 +1081,22 @@ class TrueMemoryEngine:
     # Search — full 6-layer pipeline
     # ──────────────────────────────────────────────────────────────────────
 
+    def search_vectors_raw(self, query: str, limit: int = 5) -> list[dict] | None:
+        """Pure vector cosine similarity search, or None if unavailable.
+
+        Returns results with ``score`` as cosine similarity in [0, 1].
+        Returns None (not empty list) when vectors aren't available,
+        so callers can distinguish "no vectors" from "no matches."
+        """
+        self._ensure_connection()
+        if not self._has_vectors:
+            return None
+        try:
+            from truememory.vector_search import search_vector_raw
+            return search_vector_raw(self.conn, query, limit=limit)
+        except Exception:
+            return None
+
     def search(self, query: str, limit: int = 10, _skip_surprise_boost: bool = False) -> list[dict]:
         """
         Main search pipeline.

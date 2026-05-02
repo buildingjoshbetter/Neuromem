@@ -149,13 +149,10 @@ class Memory:
 
         Falls back to regular search() if vector search is unavailable.
         """
-        if self._engine.conn is None or not self._engine._has_vectors:
+        result = self._engine.search_vectors_raw(query, limit=limit)
+        if result is None:
             return self.search(query, limit=limit)
-        try:
-            from truememory.vector_search import search_vector_raw
-            return search_vector_raw(self._engine.conn, query, limit=limit)
-        except Exception:
-            return self.search(query, limit=limit)
+        return result
 
     def search_deep(
         self,

@@ -252,3 +252,29 @@ def search_fts_in_range(
     results = results[:limit]
     _normalize_scores(results)
     return results
+
+
+def _fts_search(conn: sqlite3.Connection, fts_query: str,
+                limit: int = 20) -> list[dict]:
+    """Run an FTS5 search and return result dicts."""
+    sql = (
+        "SELECT m.id, m.content, m.sender, m.recipient, m.timestamp, "
+        "       m.category, m.modality, messages_fts.rank AS score "
+        "FROM messages_fts "
+        "JOIN messages m ON m.id = messages_fts.rowid "
+        "WHERE messages_fts MATCH ? "
+        "ORDER BY messages_fts.rank LIMIT ?"
+    )
+    try:
+        rows = conn.execute(sql, (fts_query, limit)).fetchall()
+    except sqlite3.OperationalError:
+        return []
+
+    return [
+        {
+            "id": r[0], "content": r[1], "sender": r[2],
+            "recipient": r[3], "timestamp": r[4],
+            "category": r[5], "modality": r[6], "score": r[7],
+        }
+        for r in rows
+    ]

@@ -35,7 +35,7 @@ import sqlite3
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from truememory.fts_search import _build_safe_fts_query
+from truememory.fts_search import _build_safe_fts_query, _fts_search
 
 
 # ---------------------------------------------------------------------------
@@ -272,30 +272,6 @@ def _normalize_subject(raw: str, context: str = "") -> str:
     return re.sub(r"\s+", "_", lower)[:50]
 
 
-def _fts_search(conn: sqlite3.Connection, fts_query: str,
-                limit: int = 20) -> list[dict]:
-    """Run an FTS5 search and return result dicts."""
-    sql = (
-        "SELECT m.id, m.content, m.sender, m.recipient, m.timestamp, "
-        "       m.category, m.modality, messages_fts.rank AS score "
-        "FROM messages_fts "
-        "JOIN messages m ON m.id = messages_fts.rowid "
-        "WHERE messages_fts MATCH ? "
-        "ORDER BY messages_fts.rank LIMIT ?"
-    )
-    try:
-        rows = conn.execute(sql, (fts_query, limit)).fetchall()
-    except sqlite3.OperationalError:
-        return []
-
-    return [
-        {
-            "id": r[0], "content": r[1], "sender": r[2],
-            "recipient": r[3], "timestamp": r[4],
-            "category": r[5], "modality": r[6], "score": r[7],
-        }
-        for r in rows
-    ]
 
 
 # ---------------------------------------------------------------------------
