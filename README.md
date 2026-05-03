@@ -258,7 +258,7 @@ Every benchmark script is self-contained and runs on [Modal](https://modal.com).
   organization = {Sauron},
   year = {2026},
   url = {https://github.com/buildingjoshbetter/TrueMemory},
-  version = {0.5.0}
+  version = {0.6.0}
 }
 ```
 

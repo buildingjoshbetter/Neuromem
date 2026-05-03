@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.6.0] — 2026-04-XX
+## [0.6.0] — 2026-05-02
 
 ### Added
 - **Encoding gate** (`encoding_gate.py`) — three-signal filter for incoming facts.
