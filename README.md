@@ -11,7 +11,8 @@
   <a href="https://pypi.org/project/truememory/"><img src="https://img.shields.io/pypi/pyversions/truememory?color=blue" alt="Python"></a>
   <a href="https://github.com/buildingjoshbetter/TrueMemory/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/LoCoMo-93.0%25_(Pro)-blueviolet" alt="LoCoMo Score">
-  <img src="https://img.shields.io/badge/BEAM--1M-75.0%25_(SOTA)-orange" alt="BEAM Score">
+  <img src="https://img.shields.io/badge/LongMemEval-92.0%25_(Pro)-blue" alt="LongMemEval Score">
+  <img src="https://img.shields.io/badge/BEAM--1M-76.6%25_(SOTA)-orange" alt="BEAM Score">
 </p>
 
 <p align="center">
@@ -23,7 +24,7 @@
 ## 💡 What is TrueMemory?
 
 - **Remembers everything across sessions.** Facts, preferences, decisions, corrections. Your AI finally knows who you are.
-- **93.0% on LoCoMo, SOTA on BEAM-1M.** Beats every live-retrieval memory system on both major benchmarks. Independently reproducible.
+- **93.0% on LoCoMo, 92.0% on LongMemEval, SOTA on BEAM-1M.** Beats every live-retrieval memory system across three major benchmarks. Independently reproducible.
 - **Runs locally on a single SQLite file.** Zero cloud, zero API keys for Edge and Base tiers. Your memories never leave your machine.
 - **Neuroscience-inspired architecture.** Six retrieval layers plus an encoding gate that filters noise from signal before anything gets stored.
 - **Works with Claude Code and Claude Desktop.** Four lifecycle hooks capture conversations automatically. No manual work needed.
@@ -95,7 +96,9 @@ Same architecture, three tiers. Trade off install size and hardware for accuracy
 | | Edge | Base | Pro |
 |---|------|------|-----|
 | **LoCoMo** (3-run mean) | 89.6% | 92.0% | 93.0% |
-| **BEAM-1M** | | | 75.0% (SOTA) |
+| **LongMemEval** (3-run mean) | | | 92.0% |
+| **BEAM-1M** (3-run mean) | | | 76.6% (SOTA) |
+| **BEAM-10M** (single run) | | | 65.0% |
 | **Embedder** | Model2Vec potion-base-8M (8M params, 256d) | Qwen3-Embedding-0.6B (600M params, 256d) | Qwen3-Embedding-0.6B (600M params, 256d) |
 | **Reranker** | MiniLM-L-6-v2 (22M) | gte-reranker-modernbert (149M) | gte-reranker-modernbert (149M) |
 | **HyDE** | off | off | on (requires LLM API key) |
@@ -159,7 +162,7 @@ When you ask a question, six layers work together:
   <img src="assets/charts/leaderboard-bar.png" alt="LoCoMo Benchmark Leaderboard" />
 </p>
 
-Tested on [LoCoMo](https://github.com/snap-research/locomo) (1,540 questions, 10 conversations) and [BEAM-1M](https://github.com/mohammadtavakoli78/BEAM) (700 questions, 35 conversations at 1M+ tokens each). All systems share the same answer model (GPT-4.1-mini), judge (GPT-4o-mini, 3x majority vote), and scoring pipeline. Zero errors across 12,320 total answers.
+Tested on [LoCoMo](https://github.com/snap-research/locomo) (1,540 questions, 10 conversations), [LongMemEval](https://github.com/xiaowu0162/LongMemEval) (500 questions, multi-session), [BEAM-1M](https://github.com/mohammadtavakoli78/BEAM) (700 questions, 35 conversations at 1M+ tokens), and BEAM-10M (200 questions, 10 conversations at 10M tokens). All systems share the same answer model (GPT-4.1-mini), judge (GPT-4o-mini, 3x majority vote), and scoring pipeline.
 
 ### LoCoMo (3-run validated means)
 
@@ -169,49 +172,68 @@ Tested on [LoCoMo](https://github.com/snap-research/locomo) (1,540 questions, 10
 | Base | 92.0% | 91.5% | 91.3% | 82.3% | 93.9% |
 | Pro  | 93.0% | 92.6% | 90.0% | 86.5% | 95.4% |
 
-### BEAM-1M (Pro tier)
+### BEAM-1M (Pro tier, 3-run mean)
 
 | Category | Score |
 |----------|-------|
-| Preference following | 95.7% |
-| Contradiction resolution | 90.0% |
-| Information extraction | 90.0% |
-| Summarization | 90.0% |
-| Instruction following | 81.4% |
-| Knowledge update | 78.6% |
-| Abstention | 75.7% |
-| Multi-session reasoning | 68.6% |
-| Temporal reasoning | 62.9% |
-| Event ordering | 17.1% |
-| **Overall** | **75.0%** |
+| Preference following | 97.1% |
+| Contradiction resolution | 91.4% |
+| Information extraction | 91.4% |
+| Summarization | 89.5% |
+| Instruction following | 84.8% |
+| Abstention | 82.4% |
+| Knowledge update | 77.6% |
+| Multi-session reasoning | 67.1% |
+| Temporal reasoning | 64.8% |
+| Event ordering | 19.5% |
+| **Overall** | **76.6%** |
+
+### LongMemEval (Pro tier, 3-run mean)
+
+| Variant | Accuracy | Correct/500 |
+|---------|----------|-------------|
+| Oracle | 92.0% | 460 |
+| Strict (_s) | 87.8% | 439 |
+
+### BEAM-10M (Pro tier, single run)
+
+| Overall | 65.0% (130/200) |
+|---------|-----------------|
+| GPU | A100 80GB |
+| Conversations | 10 at 10M tokens (~20K messages each) |
 
 <p align="center">
   <img src="assets/charts/accuracy-vs-cost.png" alt="Accuracy vs Infrastructure Cost" />
 </p>
 
-Every benchmark script is self-contained and runs on [Modal](https://modal.com). Reproduce any result yourself:
+### Reproduce any result yourself
 
-- **[LoCoMo Reproduction Scripts](benchmarks/locomo/scripts/)** — run any of the 8 systems (TrueMemory, Mem0, Zep, Engram, etc.)
-- **[LoCoMo Full Results](benchmarks/locomo/BENCHMARK_RESULTS.md)** — per-category breakdowns, latency, cost, hardware
-- **[LoCoMo Evaluation Config](benchmarks/locomo/EVAL_CONFIG.md)** — exact models, prompts, judge setup, parameters
-- **[BEAM-1M Reproduction Script](benchmarks/beam/bench_truememory_pro_beam1m.py)** — 35 conversations at 1M+ tokens
+Every benchmark script is self-contained and runs on [Modal](https://modal.com).
+
+- **[LoCoMo Scripts](benchmarks/locomo/scripts/)** — 8 systems (TrueMemory, Mem0, Zep, Engram, etc.)
+- **[LoCoMo Results](benchmarks/locomo/BENCHMARK_RESULTS.md)** — per-category breakdowns, latency, cost
+- **[LoCoMo Eval Config](benchmarks/locomo/EVAL_CONFIG.md)** — exact models, prompts, parameters
+- **[LongMemEval Scripts](benchmarks/longmemeval/)** — oracle + strict variants
+- **[LongMemEval Results](benchmarks/longmemeval/results/)** — 6 TM Pro runs + 5 competitor results
+- **[BEAM-1M Script](benchmarks/beam/bench_truememory_pro_beam1m.py)** — 35 conversations at 1M+ tokens
+- **[BEAM-10M Script](benchmarks/beam/bench_truememory_pro_beam10m.py)** — 10 conversations at 10M tokens
+- **[BEAM Results](benchmarks/beam/)** — 3 runs (1M) + 1 run (10M)
 
 ### Evaluation config
 
-Both benchmarks use the same eval pipeline. Nothing is hidden.
+All benchmarks use the same eval pipeline. Nothing is hidden.
 
-| Parameter | LoCoMo | BEAM-1M |
-|-----------|--------|---------|
-| **Dataset** | 10 conversations, 1,540 questions | 35 conversations at 1M+ tokens, 700 questions |
-| **Answer model** | `openai/gpt-4.1-mini` | `openai/gpt-4.1-mini` |
-| **Answer temp** | 0 | 0 |
-| **Judge model** | `openai/gpt-4o-mini` | `openai/gpt-4o-mini` |
-| **Judge voting** | 3x majority vote | 3x majority vote |
-| **Retrieval top-k** | 100 | 100 |
-| **Compute** | Modal T4 GPU | Modal T4 GPU |
-| **Routing** | OpenRouter | OpenRouter |
+| Parameter | LoCoMo | LongMemEval | BEAM-1M | BEAM-10M |
+|-----------|--------|-------------|---------|----------|
+| **Dataset** | 10 convs, 1,540 Qs | 500 Qs, multi-session | 35 convs at 1M tokens, 700 Qs | 10 convs at 10M tokens, 200 Qs |
+| **Answer model** | `gpt-4.1-mini` | `gpt-4.1-mini` | `gpt-4.1-mini` | `gpt-4.1-mini` |
+| **Answer temp** | 0 | 0 | 0 | 0 |
+| **Judge model** | `gpt-4o-mini` | `gpt-4o-mini` | `gpt-4o-mini` | `gpt-4o-mini` |
+| **Judge voting** | 3x majority | 3x majority | 3x majority | 3x majority |
+| **Retrieval top-k** | 100 | 100 | 100 | 100 |
+| **Compute** | Modal T4 | Modal A10G | Modal T4 | Modal A100 80GB |
 
-Full details: [BENCHMARK_RESULTS.md](benchmarks/locomo/BENCHMARK_RESULTS.md) | [EVAL_CONFIG.md](benchmarks/locomo/EVAL_CONFIG.md)
+Full details: [LoCoMo](benchmarks/locomo/EVAL_CONFIG.md) | [LongMemEval](benchmarks/longmemeval/README.md) | [BEAM](benchmarks/beam/README.md)
 
 ---
 
